@@ -31,13 +31,13 @@ conda install -c conda-forge pandas cudatoolkit=10.1 cudnn
 pip install tensorflow==2.2.0 bert4keras numpy pandas keras==2.3.1  
 ```
 
-对于 tensorflow 2.5.0：
+对于 tensorflow 1.15（只限linux：
 
 ```sh
-conda create -n misaka-writer python=3.9
+conda create -n misaka-writer python=3.8
 conda activate misaka-writer
 conda install -c conda-forge pandas cudatoolkit=11.2 cudnn
-pip install tensorflow==2.5.0 bert4keras jieba
+pip install tensorflow==2.5.0 bert4keras jiebaa
 ```
 
 ## 使用方法
