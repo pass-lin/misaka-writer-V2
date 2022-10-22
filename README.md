@@ -1,7 +1,7 @@
 # misaka-writer-V2
 
 ## ai-续写小说
-https://github.com/pass-lin/misaka-writer/edit/main/README.md
+
 基于encoder-decoder结构的续写小说模型，https://github.com/pass-lin/misaka-writer/edit/main/README.md 介绍可以参考V1版本  
 相较于V1 V2在模型上做了以下升级 
 参数量 80M->200M
