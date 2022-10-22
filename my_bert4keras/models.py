@@ -2,19 +2,19 @@
 # 主要模型
 
 import numpy as np
-from my_bert4keras.backend import get_available_gpus
-from my_bert4keras.layers import *
-from my_bert4keras.snippets import insert_arguments
-from my_bert4keras.snippets import delete_arguments
-from my_bert4keras.snippets import is_string, string_matching
-from my_bert4keras.snippets import orthogonally_resize
+from .backend import get_available_gpus
+from .layers import *
+from .snippets import insert_arguments
+from .snippets import delete_arguments
+from .snippets import is_string, string_matching
+from .snippets import orthogonally_resize
 from keras.models import Model
 import json
 
 
 class Transformer(object):
-    """模型基类
-    """
+    """模型基类"""
+
     def __init__(
         self,
         vocab_size,  # 词表大小
@@ -47,7 +47,9 @@ class Transformer(object):
         self.hidden_size = hidden_size
         self.num_hidden_layers = num_hidden_layers
         self.num_attention_heads = num_attention_heads
-        self.attention_head_size = attention_head_size or hidden_size // num_attention_heads
+        self.attention_head_size = (
+            attention_head_size or hidden_size // num_attention_heads
+        )
         self.attention_key_size = attention_key_size or self.attention_head_size
         self.intermediate_size = intermediate_size
         self.dropout_rate = dropout_rate or 0
@@ -64,7 +66,7 @@ class Transformer(object):
         self.ignore_invalid_weights = ignore_invalid_weights
         self.autoresize_weights = autoresize_weights
         self.layers = {} if layers is None else layers
-        self.prefix = prefix or ''
+        self.prefix = prefix or ""
         self.name = name
         self.built = False
 
@@ -93,7 +95,7 @@ class Transformer(object):
         self.layer_norm_conds = [
             layer_norm_cond,
             layer_norm_cond_hidden_size,
-            layer_norm_cond_hidden_act or 'linear',
+            layer_norm_cond_hidden_act or "linear",
         ]
         # Call
         outputs = self.call(inputs)
@@ -103,8 +105,7 @@ class Transformer(object):
         self.built = True
 
     def call(self, inputs):
-        """定义模型的执行流程
-        """
+        """定义模型的执行流程"""
         # Embedding
         outputs = self.apply_embeddings(inputs)
         # Main
@@ -115,8 +116,7 @@ class Transformer(object):
         return outputs
 
     def prefixed(self, name):
-        """给名字加前缀
-        """
+        """给名字加前缀"""
         if name is not None:
             return self.prefix + name
 
@@ -131,15 +131,15 @@ class Transformer(object):
             return inputs
 
         if layer is MultiHeadAttention and self.residual_attention_scores:
-            kwargs['return_attention_scores'] = True
+            kwargs["return_attention_scores"] = True
 
         arguments = arguments or {}
         if layer is Lambda:
-            kwargs['arguments'] = arguments
+            kwargs["arguments"] = arguments
             arguments = {}
 
-        name = self.prefixed(kwargs.get('name'))
-        kwargs['name'] = name
+        name = self.prefixed(kwargs.get("name"))
+        kwargs["name"] = name
         if name not in self.layers:
             layer = layer(**kwargs)
             name = layer.name
@@ -152,7 +152,7 @@ class Transformer(object):
                 if name in self.attention_caches:
                     # 如果检测到Cache的传入，那么自动在Key,Value处拼接起来
                     k_cache, v_cache = self.attention_caches[name]
-                    k_name, v_name = name + '-Cached-Key', name + '-Cached-Value'
+                    k_name, v_name = name + "-Cached-Key", name + "-Cached-Value"
                     k = Concatenate1D(name=k_name)([k_cache, inputs[1]])
                     v = Concatenate1D(name=v_name)([v_cache, inputs[2]])
                     inputs = inputs[:1] + [k, v] + inputs[3:]
@@ -161,18 +161,19 @@ class Transformer(object):
                     # 矩阵，这对应RealFormer设计（https://arxiv.org/abs/2012.11747）。目前
                     # 该实现还相对粗糙，可能欠缺通用性。
                     if self.attention_scores is not None:
-                        if arguments.get('a_bias'):
-                            a_bias = Add(name=name + '-Attention-Bias'
-                                        )([inputs[3], self.attention_scores])
+                        if arguments.get("a_bias"):
+                            a_bias = Add(name=name + "-Attention-Bias")(
+                                [inputs[3], self.attention_scores]
+                            )
                             inputs = inputs[:3] + [a_bias] + inputs[4:]
                         else:
                             a_bias = self.attention_scores
                             inputs = inputs[:3] + [a_bias] + inputs[3:]
-                        arguments['a_bias'] = True
+                        arguments["a_bias"] = True
                     o, a = self.layers[name](inputs, **arguments)
                     self.attention_scores = a
                     return o
-            #print(self.layers[name],inputs)
+            # print(self.layers[name],inputs)
             return self.layers[name](inputs, **arguments)
 
     def get_inputs(self):
@@ -188,18 +189,15 @@ class Transformer(object):
         raise NotImplementedError
 
     def compute_attention_bias(self, inputs=None):
-        """定义每一层的Attention Bias
-        """
+        """定义每一层的Attention Bias"""
         return self.attention_bias
 
     def compute_position_bias(self, inputs=None):
-        """定义每一层的Position Bias（一般相对位置编码用）
-        """
+        """定义每一层的Position Bias（一般相对位置编码用）"""
         return self.position_bias
 
     def set_inputs(self, inputs, additional_input_layers=None):
-        """设置input和inputs属性
-        """
+        """设置input和inputs属性"""
         if inputs is None:
             inputs = []
         elif not isinstance(inputs, list):
@@ -218,8 +216,7 @@ class Transformer(object):
             self.input = inputs[0]
 
     def set_outputs(self, outputs):
-        """设置output和outputs属性
-        """
+        """设置output和outputs属性"""
         if not isinstance(outputs, list):
             outputs = [outputs]
 
@@ -232,13 +229,11 @@ class Transformer(object):
 
     @property
     def initializer(self):
-        """默认使用截断正态分布初始化
-        """
+        """默认使用截断正态分布初始化"""
         return keras.initializers.TruncatedNormal(stddev=0.02)
 
     def simplify(self, inputs):
-        """将list中的None过滤掉
-        """
+        """将list中的None过滤掉"""
         inputs = [i for i in inputs if i is not None]
         if len(inputs) == 1:
             inputs = inputs[0]
@@ -246,8 +241,7 @@ class Transformer(object):
         return inputs
 
     def load_embeddings(self, embeddings):
-        """处理Embedding层权重
-        """
+        """处理Embedding层权重"""
         embeddings = embeddings.astype(K.floatx())  # 防止np.average报错
 
         if self.keep_tokens is not None:
@@ -258,37 +252,29 @@ class Transformer(object):
             for item in self.compound_tokens:
                 if isinstance(item, list):
                     item = (item, [1] * len(item))
-                ext_embeddings.append(
-                    np.average(embeddings[item[0]], 0, item[1])
-                )
+                ext_embeddings.append(np.average(embeddings[item[0]], 0, item[1]))
             embeddings = np.concatenate([embeddings, ext_embeddings], 0)
 
         return embeddings
 
     def load_variable(self, checkpoint, name):
-        """加载单个变量的函数
-        """
+        """加载单个变量的函数"""
         if isinstance(checkpoint, dict):
             return checkpoint[name]
         else:
             return tf.train.load_variable(checkpoint, name)
 
     def create_variable(self, name, value, dtype=None):
-        """创建一个变量
-        """
+        """创建一个变量"""
         dtype = dtype or K.floatx()
-        return K.variable(
-            self.initializer(value.shape, dtype), dtype, name=name
-        ), value
+        return K.variable(self.initializer(value.shape, dtype), dtype, name=name), value
 
     def variable_mapping(self):
-        """构建keras层与checkpoint的变量名之间的映射表
-        """
+        """构建keras层与checkpoint的变量名之间的映射表"""
         return {}
 
     def load_weights_from_checkpoint(self, checkpoint, mapping=None):
-        """根据mapping从checkpoint加载权重
-        """
+        """根据mapping从checkpoint加载权重"""
         mapping = mapping or self.variable_mapping()
         mapping = {self.prefixed(k): v for k, v in mapping.items()}
         mapping = {k: v for k, v in mapping.items() if k in self.layers}
@@ -304,7 +290,7 @@ class Transformer(object):
                     weights.append(w)
                 except Exception as e:
                     if self.ignore_invalid_weights:
-                        print('%s, but ignored.' % e.message)
+                        print("%s, but ignored." % e.message)
                     else:
                         raise e
 
@@ -324,7 +310,7 @@ class Transformer(object):
                             count = 1
                             if layer.use_bias:
                                 count += 1
-                            if self.hidden_act in ['relu', 'leaky_relu']:
+                            if self.hidden_act in ["relu", "leaky_relu"]:
                                 count -= 2
                             if i < count:
                                 v *= np.sqrt(1.0 * w_shape[-1] / v_shape[-1])
@@ -336,8 +322,7 @@ class Transformer(object):
         K.batch_set_value(weight_value_pairs)
 
     def save_weights_as_checkpoint(self, filename, mapping=None, dtype=None):
-        """根据mapping将权重保存为checkpoint格式
-        """
+        """根据mapping将权重保存为checkpoint格式"""
         mapping = mapping or self.variable_mapping()
         mapping = {self.prefixed(k): v for k, v in mapping.items()}
         mapping = {k: v for k, v in mapping.items() if k in self.layers}
@@ -358,11 +343,10 @@ class Transformer(object):
 
 
 class LM_Mask(object):
-    """定义下三角Attention Mask（语言模型用）
-    """
+    """定义下三角Attention Mask（语言模型用）"""
+
     def compute_attention_bias(self, inputs=None):
-        """通过idxs序列的比较来得到对应的mask
-        """
+        """通过idxs序列的比较来得到对应的mask"""
         if self.attention_bias is None:
 
             def lm_mask(s):
@@ -376,7 +360,7 @@ class LM_Mask(object):
                 inputs=self.inputs[0],
                 layer=Lambda,
                 function=lm_mask,
-                name='Attention-LM-Mask'
+                name="Attention-LM-Mask",
             )
 
         return self.attention_bias
@@ -387,9 +371,9 @@ class UniLM_Mask(object):
     其中source和target的分区，由segment_ids来表示。
     UniLM: https://arxiv.org/abs/1905.03197
     """
+
     def compute_attention_bias(self, inputs=None):
-        """通过idxs序列的比较来得到对应的mask
-        """
+        """通过idxs序列的比较来得到对应的mask"""
         if self.attention_bias is None:
 
             def unilm_mask(s):
@@ -402,15 +386,15 @@ class UniLM_Mask(object):
                 inputs=self.inputs[1],
                 layer=Lambda,
                 function=unilm_mask,
-                name='Attention-UniLM-Mask'
+                name="Attention-UniLM-Mask",
             )
 
         return self.attention_bias
 
 
 class BERT(Transformer):
-    """构建BERT模型
-    """
+    """构建BERT模型"""
+
     def __init__(
         self,
         max_position,  # 序列最大长度
@@ -440,31 +424,26 @@ class BERT(Transformer):
         （但允许自行传入位置id，以实现一些特殊需求）
         """
         x_in = self.apply(
-            layer=Input, shape=(self.sequence_length,), name='Input-Token'
+            layer=Input, shape=(self.sequence_length,), name="Input-Token"
         )
         inputs = [x_in]
 
         if self.segment_vocab_size > 0:
             s_in = self.apply(
-                layer=Input,
-                shape=(self.sequence_length,),
-                name='Input-Segment'
+                layer=Input, shape=(self.sequence_length,), name="Input-Segment"
             )
             inputs.append(s_in)
 
         if self.custom_position_ids:
             p_in = self.apply(
-                layer=Input,
-                shape=(self.sequence_length,),
-                name='Input-Position'
+                layer=Input, shape=(self.sequence_length,), name="Input-Position"
             )
             inputs.append(p_in)
 
         return inputs
 
     def apply_embeddings(self, inputs):
-        """BERT的embedding是token、position、segment三者embedding之和
-        """
+        """BERT的embedding是token、position、segment三者embedding之和"""
         inputs = inputs[:]
         x = inputs.pop(0)
         if self.segment_vocab_size > 0:
@@ -482,34 +461,32 @@ class BERT(Transformer):
             output_dim=self.embedding_size,
             embeddings_initializer=self.initializer,
             mask_zero=True,
-            name='Embedding-Token'
+            name="Embedding-Token",
         )
         if self.segment_vocab_size > 0:
             if self.shared_segment_embeddings:
-                name = 'Embedding-Token'
+                name = "Embedding-Token"
             else:
-                name = 'Embedding-Segment'
+                name = "Embedding-Segment"
             s = self.apply(
                 inputs=s,
                 layer=Embedding,
                 input_dim=self.segment_vocab_size,
                 output_dim=self.embedding_size,
                 embeddings_initializer=self.initializer,
-                name=name
+                name=name,
             )
-            x = self.apply(
-                inputs=[x, s], layer=Add, name='Embedding-Token-Segment'
-            )
+            x = self.apply(inputs=[x, s], layer=Add, name="Embedding-Token-Segment")
         x = self.apply(
             inputs=self.simplify([x, p]),
             layer=PositionEmbedding,
             input_dim=self.max_position,
             output_dim=self.embedding_size,
-            merge_mode='add',
+            merge_mode="add",
             hierarchical=self.hierarchical_position,
             embeddings_initializer=self.initializer,
             custom_position_ids=self.custom_position_ids,
-            name='Embedding-Position'
+            name="Embedding-Position",
         )
         x = self.apply(
             inputs=self.simplify([x, z]),
@@ -519,13 +496,10 @@ class BERT(Transformer):
             hidden_units=self.layer_norm_conds[1],
             hidden_activation=self.layer_norm_conds[2],
             hidden_initializer=self.initializer,
-            name='Embedding-Norm'
+            name="Embedding-Norm",
         )
         x = self.apply(
-            inputs=x,
-            layer=Dropout,
-            rate=self.dropout_rate,
-            name='Embedding-Dropout'
+            inputs=x, layer=Dropout, rate=self.dropout_rate, name="Embedding-Dropout"
         )
         if self.embedding_size != self.hidden_size:
             x = self.apply(
@@ -533,7 +507,7 @@ class BERT(Transformer):
                 layer=Dense,
                 units=self.hidden_size,
                 kernel_initializer=self.initializer,
-                name='Embedding-Mapping'
+                name="Embedding-Mapping",
             )
 
         return x
@@ -545,14 +519,14 @@ class BERT(Transformer):
         x = inputs
         z = self.layer_norm_conds[0]
 
-        attention_name = 'Transformer-%d-MultiHeadSelfAttention' % index
-        feed_forward_name = 'Transformer-%d-FeedForward' % index
+        attention_name = "Transformer-%d-MultiHeadSelfAttention" % index
+        feed_forward_name = "Transformer-%d-FeedForward" % index
         attention_mask = self.compute_attention_bias(index)
 
         # Self Attention
-        xi, x, arguments = x, [x, x, x], {'a_bias': None}
+        xi, x, arguments = x, [x, x, x], {"a_bias": None}
         if attention_mask is not None:
-            arguments['a_bias'] = True
+            arguments["a_bias"] = True
             x.append(attention_mask)
 
         x = self.apply(
@@ -565,17 +539,15 @@ class BERT(Transformer):
             key_size=self.attention_key_size,
             attention_dropout=self.attention_dropout_rate,
             kernel_initializer=self.initializer,
-            name=attention_name
+            name=attention_name,
         )
         x = self.apply(
             inputs=x,
             layer=Dropout,
             rate=self.dropout_rate,
-            name='%s-Dropout' % attention_name
+            name="%s-Dropout" % attention_name,
         )
-        x = self.apply(
-            inputs=[xi, x], layer=Add, name='%s-Add' % attention_name
-        )
+        x = self.apply(inputs=[xi, x], layer=Add, name="%s-Add" % attention_name)
         x = self.apply(
             inputs=self.simplify([x, z]),
             layer=LayerNormalization,
@@ -584,7 +556,7 @@ class BERT(Transformer):
             hidden_units=self.layer_norm_conds[1],
             hidden_activation=self.layer_norm_conds[2],
             hidden_initializer=self.initializer,
-            name='%s-Norm' % attention_name
+            name="%s-Norm" % attention_name,
         )
 
         # Feed Forward
@@ -595,17 +567,15 @@ class BERT(Transformer):
             units=self.intermediate_size,
             activation=self.hidden_act,
             kernel_initializer=self.initializer,
-            name=feed_forward_name
+            name=feed_forward_name,
         )
         x = self.apply(
             inputs=x,
             layer=Dropout,
             rate=self.dropout_rate,
-            name='%s-Dropout' % feed_forward_name
+            name="%s-Dropout" % feed_forward_name,
         )
-        x = self.apply(
-            inputs=[xi, x], layer=Add, name='%s-Add' % feed_forward_name
-        )
+        x = self.apply(inputs=[xi, x], layer=Add, name="%s-Add" % feed_forward_name)
         x = self.apply(
             inputs=self.simplify([x, z]),
             layer=LayerNormalization,
@@ -614,14 +584,13 @@ class BERT(Transformer):
             hidden_units=self.layer_norm_conds[1],
             hidden_activation=self.layer_norm_conds[2],
             hidden_initializer=self.initializer,
-            name='%s-Norm' % feed_forward_name
+            name="%s-Norm" % feed_forward_name,
         )
 
         return x
 
     def apply_final_layers(self, inputs):
-        """根据剩余参数决定输出
-        """
+        """根据剩余参数决定输出"""
         x = inputs
         z = self.layer_norm_conds[0]
         outputs = [x]
@@ -630,19 +599,16 @@ class BERT(Transformer):
             # Pooler部分（提取CLS向量）
             x = outputs[0]
             x = self.apply(
-                inputs=x,
-                layer=Lambda,
-                function=lambda x: x[:, 0],
-                name='Pooler'
+                inputs=x, layer=Lambda, function=lambda x: x[:, 0], name="Pooler"
             )
-            pool_activation = 'tanh' if self.with_pool is True else self.with_pool
+            pool_activation = "tanh" if self.with_pool is True else self.with_pool
             x = self.apply(
                 inputs=x,
                 layer=Dense,
                 units=self.hidden_size,
                 activation=pool_activation,
                 kernel_initializer=self.initializer,
-                name='Pooler-Dense'
+                name="Pooler-Dense",
             )
             if self.with_nsp:
                 # Next Sentence Prediction部分
@@ -650,9 +616,9 @@ class BERT(Transformer):
                     inputs=x,
                     layer=Dense,
                     units=2,
-                    activation='softmax',
+                    activation="softmax",
                     kernel_initializer=self.initializer,
-                    name='NSP-Proba'
+                    name="NSP-Proba",
                 )
             outputs.append(x)
 
@@ -665,7 +631,7 @@ class BERT(Transformer):
                 units=self.embedding_size,
                 activation=self.hidden_act,
                 kernel_initializer=self.initializer,
-                name='MLM-Dense'
+                name="MLM-Dense",
             )
             x = self.apply(
                 inputs=self.simplify([x, z]),
@@ -675,23 +641,21 @@ class BERT(Transformer):
                 hidden_units=self.layer_norm_conds[1],
                 hidden_activation=self.layer_norm_conds[2],
                 hidden_initializer=self.initializer,
-                name='MLM-Norm'
+                name="MLM-Norm",
             )
             x = self.apply(
                 inputs=x,
                 layer=Embedding,
-                arguments={'mode': 'dense'},
-                name='Embedding-Token'
+                arguments={"mode": "dense"},
+                name="Embedding-Token",
             )
-            x = self.apply(
-                inputs=x, layer=ScaleOffset, scale=False, name='MLM-Bias'
-            )
-            mlm_activation = 'softmax' if self.with_mlm is True else self.with_mlm
+            x = self.apply(inputs=x, layer=ScaleOffset, scale=False, name="MLM-Bias")
+            mlm_activation = "softmax" if self.with_mlm is True else self.with_mlm
             x = self.apply(
                 inputs=x,
                 layer=Activation,
                 activation=mlm_activation,
-                name='MLM-Activation'
+                name="MLM-Activation",
             )
             outputs.append(x)
 
@@ -705,95 +669,98 @@ class BERT(Transformer):
         return outputs
 
     def load_variable(self, checkpoint, name):
-        """加载单个变量的函数
-        """
+        """加载单个变量的函数"""
         variable = super(BERT, self).load_variable(checkpoint, name)
         if name in [
-            'bert/embeddings/word_embeddings',
-            'cls/predictions/output_bias',
+            "bert/embeddings/word_embeddings",
+            "cls/predictions/output_bias",
         ]:
             return self.load_embeddings(variable)
-        elif name == 'cls/seq_relationship/output_weights':
+        elif name == "cls/seq_relationship/output_weights":
             return variable.T
         else:
             return variable
 
     def create_variable(self, name, value, dtype=None):
-        """在tensorflow中创建一个变量
-        """
-        if name == 'cls/seq_relationship/output_weights':
+        """在tensorflow中创建一个变量"""
+        if name == "cls/seq_relationship/output_weights":
             value = value.T
         return super(BERT, self).create_variable(name, value, dtype)
 
     def variable_mapping(self):
-        """映射到官方BERT权重格式
-        """
+        """映射到官方BERT权重格式"""
         mapping = {
-            'Embedding-Token': ['bert/embeddings/word_embeddings'],
-            'Embedding-Segment': ['bert/embeddings/token_type_embeddings'],
-            'Embedding-Position': ['bert/embeddings/position_embeddings'],
-            'Embedding-Norm': [
-                'bert/embeddings/LayerNorm/beta',
-                'bert/embeddings/LayerNorm/gamma',
+            "Embedding-Token": ["bert/embeddings/word_embeddings"],
+            "Embedding-Segment": ["bert/embeddings/token_type_embeddings"],
+            "Embedding-Position": ["bert/embeddings/position_embeddings"],
+            "Embedding-Norm": [
+                "bert/embeddings/LayerNorm/beta",
+                "bert/embeddings/LayerNorm/gamma",
             ],
-            'Embedding-Mapping': [
-                'bert/encoder/embedding_hidden_mapping_in/kernel',
-                'bert/encoder/embedding_hidden_mapping_in/bias',
+            "Embedding-Mapping": [
+                "bert/encoder/embedding_hidden_mapping_in/kernel",
+                "bert/encoder/embedding_hidden_mapping_in/bias",
             ],
-            'Pooler-Dense': [
-                'bert/pooler/dense/kernel',
-                'bert/pooler/dense/bias',
+            "Pooler-Dense": [
+                "bert/pooler/dense/kernel",
+                "bert/pooler/dense/bias",
             ],
-            'NSP-Proba': [
-                'cls/seq_relationship/output_weights',
-                'cls/seq_relationship/output_bias',
+            "NSP-Proba": [
+                "cls/seq_relationship/output_weights",
+                "cls/seq_relationship/output_bias",
             ],
-            'MLM-Dense': [
-                'cls/predictions/transform/dense/kernel',
-                'cls/predictions/transform/dense/bias',
+            "MLM-Dense": [
+                "cls/predictions/transform/dense/kernel",
+                "cls/predictions/transform/dense/bias",
             ],
-            'MLM-Norm': [
-                'cls/predictions/transform/LayerNorm/beta',
-                'cls/predictions/transform/LayerNorm/gamma',
+            "MLM-Norm": [
+                "cls/predictions/transform/LayerNorm/beta",
+                "cls/predictions/transform/LayerNorm/gamma",
             ],
-            'MLM-Bias': ['cls/predictions/output_bias'],
+            "MLM-Bias": ["cls/predictions/output_bias"],
         }
 
         for i in range(self.num_hidden_layers):
-            prefix = 'bert/encoder/layer_%d/' % i
-            mapping.update({
-                'Transformer-%d-MultiHeadSelfAttention' % i: [
-                    prefix + 'attention/self/query/kernel',
-                    prefix + 'attention/self/query/bias',
-                    prefix + 'attention/self/key/kernel',
-                    prefix + 'attention/self/key/bias',
-                    prefix + 'attention/self/value/kernel',
-                    prefix + 'attention/self/value/bias',
-                    prefix + 'attention/output/dense/kernel',
-                    prefix + 'attention/output/dense/bias',
-                ],
-                'Transformer-%d-MultiHeadSelfAttention-Norm' % i: [
-                    prefix + 'attention/output/LayerNorm/beta',
-                    prefix + 'attention/output/LayerNorm/gamma',
-                ],
-                'Transformer-%d-FeedForward' % i: [
-                    prefix + 'intermediate/dense/kernel',
-                    prefix + 'intermediate/dense/bias',
-                    prefix + 'output/dense/kernel',
-                    prefix + 'output/dense/bias',
-                ],
-                'Transformer-%d-FeedForward-Norm' % i: [
-                    prefix + 'output/LayerNorm/beta',
-                    prefix + 'output/LayerNorm/gamma',
-                ],
-            })
+            prefix = "bert/encoder/layer_%d/" % i
+            mapping.update(
+                {
+                    "Transformer-%d-MultiHeadSelfAttention"
+                    % i: [
+                        prefix + "attention/self/query/kernel",
+                        prefix + "attention/self/query/bias",
+                        prefix + "attention/self/key/kernel",
+                        prefix + "attention/self/key/bias",
+                        prefix + "attention/self/value/kernel",
+                        prefix + "attention/self/value/bias",
+                        prefix + "attention/output/dense/kernel",
+                        prefix + "attention/output/dense/bias",
+                    ],
+                    "Transformer-%d-MultiHeadSelfAttention-Norm"
+                    % i: [
+                        prefix + "attention/output/LayerNorm/beta",
+                        prefix + "attention/output/LayerNorm/gamma",
+                    ],
+                    "Transformer-%d-FeedForward"
+                    % i: [
+                        prefix + "intermediate/dense/kernel",
+                        prefix + "intermediate/dense/bias",
+                        prefix + "output/dense/kernel",
+                        prefix + "output/dense/bias",
+                    ],
+                    "Transformer-%d-FeedForward-Norm"
+                    % i: [
+                        prefix + "output/LayerNorm/beta",
+                        prefix + "output/LayerNorm/gamma",
+                    ],
+                }
+            )
 
         return mapping
 
 
 class ALBERT(BERT):
-    """构建ALBERT模型
-    """
+    """构建ALBERT模型"""
+
     def apply_main_layers(self, inputs, index):
         """ALBERT的主体是基于Self-Attention的模块
         顺序：Att --> Add --> LN --> FFN --> Add --> LN
@@ -801,14 +768,14 @@ class ALBERT(BERT):
         x = inputs
         z = self.layer_norm_conds[0]
 
-        attention_name = 'Transformer-MultiHeadSelfAttention'
-        feed_forward_name = 'Transformer-FeedForward'
+        attention_name = "Transformer-MultiHeadSelfAttention"
+        feed_forward_name = "Transformer-FeedForward"
         attention_mask = self.compute_attention_bias(index)
 
         # Self Attention
-        xi, x, arguments = x, [x, x, x], {'a_bias': None}
+        xi, x, arguments = x, [x, x, x], {"a_bias": None}
         if attention_mask is not None:
-            arguments['a_bias'] = True
+            arguments["a_bias"] = True
             x.append(attention_mask)
 
         x = self.apply(
@@ -821,17 +788,15 @@ class ALBERT(BERT):
             key_size=self.attention_key_size,
             attention_dropout=self.attention_dropout_rate,
             kernel_initializer=self.initializer,
-            name=attention_name
+            name=attention_name,
         )
         x = self.apply(
             inputs=x,
             layer=Dropout,
             rate=self.dropout_rate,
-            name='%s-Dropout' % attention_name
+            name="%s-Dropout" % attention_name,
         )
-        x = self.apply(
-            inputs=[xi, x], layer=Add, name='%s-Add' % attention_name
-        )
+        x = self.apply(inputs=[xi, x], layer=Add, name="%s-Add" % attention_name)
         x = self.apply(
             inputs=self.simplify([x, z]),
             layer=LayerNormalization,
@@ -839,7 +804,7 @@ class ALBERT(BERT):
             hidden_units=self.layer_norm_conds[1],
             hidden_activation=self.layer_norm_conds[2],
             hidden_initializer=self.initializer,
-            name='%s-Norm' % attention_name
+            name="%s-Norm" % attention_name,
         )
 
         # Feed Forward
@@ -850,17 +815,15 @@ class ALBERT(BERT):
             units=self.intermediate_size,
             activation=self.hidden_act,
             kernel_initializer=self.initializer,
-            name=feed_forward_name
+            name=feed_forward_name,
         )
         x = self.apply(
             inputs=x,
             layer=Dropout,
             rate=self.dropout_rate,
-            name='%s-Dropout' % feed_forward_name
+            name="%s-Dropout" % feed_forward_name,
         )
-        x = self.apply(
-            inputs=[xi, x], layer=Add, name='%s-Add' % feed_forward_name
-        )
+        x = self.apply(inputs=[xi, x], layer=Add, name="%s-Add" % feed_forward_name)
         x = self.apply(
             inputs=self.simplify([x, z]),
             layer=LayerNormalization,
@@ -868,83 +831,89 @@ class ALBERT(BERT):
             hidden_units=self.layer_norm_conds[1],
             hidden_activation=self.layer_norm_conds[2],
             hidden_initializer=self.initializer,
-            name='%s-Norm' % feed_forward_name
+            name="%s-Norm" % feed_forward_name,
         )
 
         return x
 
     def variable_mapping(self):
-        """映射到官方ALBERT权重格式
-        """
+        """映射到官方ALBERT权重格式"""
         mapping = super(ALBERT, self).variable_mapping()
 
-        prefix = 'bert/encoder/transformer/group_0/inner_group_0/'
-        mapping.update({
-            'Transformer-MultiHeadSelfAttention': [
-                prefix + 'attention_1/self/query/kernel',
-                prefix + 'attention_1/self/query/bias',
-                prefix + 'attention_1/self/key/kernel',
-                prefix + 'attention_1/self/key/bias',
-                prefix + 'attention_1/self/value/kernel',
-                prefix + 'attention_1/self/value/bias',
-                prefix + 'attention_1/output/dense/kernel',
-                prefix + 'attention_1/output/dense/bias',
-            ],
-            'Transformer-MultiHeadSelfAttention-Norm': [
-                prefix + 'LayerNorm/beta',
-                prefix + 'LayerNorm/gamma',
-            ],
-            'Transformer-FeedForward': [
-                prefix + 'ffn_1/intermediate/dense/kernel',
-                prefix + 'ffn_1/intermediate/dense/bias',
-                prefix + 'ffn_1/intermediate/output/dense/kernel',
-                prefix + 'ffn_1/intermediate/output/dense/bias',
-            ],
-            'Transformer-FeedForward-Norm': [
-                prefix + 'LayerNorm_1/beta',
-                prefix + 'LayerNorm_1/gamma',
-            ],
-        })
+        prefix = "bert/encoder/transformer/group_0/inner_group_0/"
+        mapping.update(
+            {
+                "Transformer-MultiHeadSelfAttention": [
+                    prefix + "attention_1/self/query/kernel",
+                    prefix + "attention_1/self/query/bias",
+                    prefix + "attention_1/self/key/kernel",
+                    prefix + "attention_1/self/key/bias",
+                    prefix + "attention_1/self/value/kernel",
+                    prefix + "attention_1/self/value/bias",
+                    prefix + "attention_1/output/dense/kernel",
+                    prefix + "attention_1/output/dense/bias",
+                ],
+                "Transformer-MultiHeadSelfAttention-Norm": [
+                    prefix + "LayerNorm/beta",
+                    prefix + "LayerNorm/gamma",
+                ],
+                "Transformer-FeedForward": [
+                    prefix + "ffn_1/intermediate/dense/kernel",
+                    prefix + "ffn_1/intermediate/dense/bias",
+                    prefix + "ffn_1/intermediate/output/dense/kernel",
+                    prefix + "ffn_1/intermediate/output/dense/bias",
+                ],
+                "Transformer-FeedForward-Norm": [
+                    prefix + "LayerNorm_1/beta",
+                    prefix + "LayerNorm_1/gamma",
+                ],
+            }
+        )
 
         return mapping
 
 
 class ALBERT_Unshared(BERT):
-    """解开ALBERT共享约束，当成BERT用
-    """
+    """解开ALBERT共享约束，当成BERT用"""
+
     def variable_mapping(self):
-        """映射到官方ALBERT权重格式
-        """
+        """映射到官方ALBERT权重格式"""
         mapping = super(ALBERT_Unshared, self).variable_mapping()
 
-        prefix = 'bert/encoder/transformer/group_0/inner_group_0/'
+        prefix = "bert/encoder/transformer/group_0/inner_group_0/"
         for i in range(self.num_hidden_layers):
-            mapping.update({
-                'Transformer-%d-MultiHeadSelfAttention' % i: [
-                    prefix + 'attention_1/self/query/kernel',
-                    prefix + 'attention_1/self/query/bias',
-                    prefix + 'attention_1/self/key/kernel',
-                    prefix + 'attention_1/self/key/bias',
-                    prefix + 'attention_1/self/value/kernel',
-                    prefix + 'attention_1/self/value/bias',
-                    prefix + 'attention_1/output/dense/kernel',
-                    prefix + 'attention_1/output/dense/bias',
-                ],
-                'Transformer-%d-MultiHeadSelfAttention-Norm' % i: [
-                    prefix + 'LayerNorm/beta',
-                    prefix + 'LayerNorm/gamma',
-                ],
-                'Transformer-%d-FeedForward' % i: [
-                    prefix + 'ffn_1/intermediate/dense/kernel',
-                    prefix + 'ffn_1/intermediate/dense/bias',
-                    prefix + 'ffn_1/intermediate/output/dense/kernel',
-                    prefix + 'ffn_1/intermediate/output/dense/bias',
-                ],
-                'Transformer-%d-FeedForward-Norm' % i: [
-                    prefix + 'LayerNorm_1/beta',
-                    prefix + 'LayerNorm_1/gamma',
-                ],
-            })
+            mapping.update(
+                {
+                    "Transformer-%d-MultiHeadSelfAttention"
+                    % i: [
+                        prefix + "attention_1/self/query/kernel",
+                        prefix + "attention_1/self/query/bias",
+                        prefix + "attention_1/self/key/kernel",
+                        prefix + "attention_1/self/key/bias",
+                        prefix + "attention_1/self/value/kernel",
+                        prefix + "attention_1/self/value/bias",
+                        prefix + "attention_1/output/dense/kernel",
+                        prefix + "attention_1/output/dense/bias",
+                    ],
+                    "Transformer-%d-MultiHeadSelfAttention-Norm"
+                    % i: [
+                        prefix + "LayerNorm/beta",
+                        prefix + "LayerNorm/gamma",
+                    ],
+                    "Transformer-%d-FeedForward"
+                    % i: [
+                        prefix + "ffn_1/intermediate/dense/kernel",
+                        prefix + "ffn_1/intermediate/dense/bias",
+                        prefix + "ffn_1/intermediate/output/dense/kernel",
+                        prefix + "ffn_1/intermediate/output/dense/bias",
+                    ],
+                    "Transformer-%d-FeedForward-Norm"
+                    % i: [
+                        prefix + "LayerNorm_1/beta",
+                        prefix + "LayerNorm_1/gamma",
+                    ],
+                }
+            )
 
         return mapping
 
@@ -953,9 +922,9 @@ class NEZHA(BERT):
     """华为推出的NAZHA模型
     链接：https://arxiv.org/abs/1909.00204
     """
+
     def apply_embeddings(self, inputs):
-        """NEZHA的embedding是token、segment两者embedding之和
-        """
+        """NEZHA的embedding是token、segment两者embedding之和"""
         inputs = inputs[:]
         x = inputs.pop(0)
         if self.segment_vocab_size > 0:
@@ -969,24 +938,22 @@ class NEZHA(BERT):
             output_dim=self.embedding_size,
             embeddings_initializer=self.initializer,
             mask_zero=True,
-            name='Embedding-Token'
+            name="Embedding-Token",
         )
         if self.segment_vocab_size > 0:
             if self.shared_segment_embeddings:
-                name = 'Embedding-Token'
+                name = "Embedding-Token"
             else:
-                name = 'Embedding-Segment'
+                name = "Embedding-Segment"
             s = self.apply(
                 inputs=s,
                 layer=Embedding,
                 input_dim=self.segment_vocab_size,
                 output_dim=self.embedding_size,
                 embeddings_initializer=self.initializer,
-                name=name
+                name=name,
             )
-            x = self.apply(
-                inputs=[x, s], layer=Add, name='Embedding-Token-Segment'
-            )
+            x = self.apply(inputs=[x, s], layer=Add, name="Embedding-Token-Segment")
         x = self.apply(
             inputs=self.simplify([x, z]),
             layer=LayerNormalization,
@@ -994,13 +961,10 @@ class NEZHA(BERT):
             hidden_units=self.layer_norm_conds[1],
             hidden_activation=self.layer_norm_conds[2],
             hidden_initializer=self.initializer,
-            name='Embedding-Norm'
+            name="Embedding-Norm",
         )
         x = self.apply(
-            inputs=x,
-            layer=Dropout,
-            rate=self.dropout_rate,
-            name='Embedding-Dropout'
+            inputs=x, layer=Dropout, rate=self.dropout_rate, name="Embedding-Dropout"
         )
         if self.embedding_size != self.hidden_size:
             x = self.apply(
@@ -1008,7 +972,7 @@ class NEZHA(BERT):
                 layer=Dense,
                 units=self.hidden_size,
                 kernel_initializer=self.initializer,
-                name='Embedding-Mapping'
+                name="Embedding-Mapping",
             )
 
         return x
@@ -1020,16 +984,16 @@ class NEZHA(BERT):
         x = inputs
         z = self.layer_norm_conds[0]
 
-        attention_name = 'Transformer-%d-MultiHeadSelfAttention' % index
-        feed_forward_name = 'Transformer-%d-FeedForward' % index
+        attention_name = "Transformer-%d-MultiHeadSelfAttention" % index
+        feed_forward_name = "Transformer-%d-FeedForward" % index
         attention_mask = self.compute_attention_bias(index)
         position_bias = self.compute_position_bias(x)
 
         # Self Attention
         xi, x = x, [x, x, x, position_bias]
-        arguments = {'a_bias': None, 'p_bias': 'typical_relative'}
+        arguments = {"a_bias": None, "p_bias": "typical_relative"}
         if attention_mask is not None:
-            arguments['a_bias'] = True
+            arguments["a_bias"] = True
             x.insert(3, attention_mask)
 
         x = self.apply(
@@ -1042,17 +1006,15 @@ class NEZHA(BERT):
             key_size=self.attention_key_size,
             attention_dropout=self.attention_dropout_rate,
             kernel_initializer=self.initializer,
-            name=attention_name
+            name=attention_name,
         )
         x = self.apply(
             inputs=x,
             layer=Dropout,
             rate=self.dropout_rate,
-            name='%s-Dropout' % attention_name
+            name="%s-Dropout" % attention_name,
         )
-        x = self.apply(
-            inputs=[xi, x], layer=Add, name='%s-Add' % attention_name
-        )
+        x = self.apply(inputs=[xi, x], layer=Add, name="%s-Add" % attention_name)
         x = self.apply(
             inputs=self.simplify([x, z]),
             layer=LayerNormalization,
@@ -1060,7 +1022,7 @@ class NEZHA(BERT):
             hidden_units=self.layer_norm_conds[1],
             hidden_activation=self.layer_norm_conds[2],
             hidden_initializer=self.initializer,
-            name='%s-Norm' % attention_name
+            name="%s-Norm" % attention_name,
         )
 
         # Feed Forward
@@ -1071,17 +1033,15 @@ class NEZHA(BERT):
             units=self.intermediate_size,
             activation=self.hidden_act,
             kernel_initializer=self.initializer,
-            name=feed_forward_name
+            name=feed_forward_name,
         )
         x = self.apply(
             inputs=x,
             layer=Dropout,
             rate=self.dropout_rate,
-            name='%s-Dropout' % feed_forward_name
+            name="%s-Dropout" % feed_forward_name,
         )
-        x = self.apply(
-            inputs=[xi, x], layer=Add, name='%s-Add' % feed_forward_name
-        )
+        x = self.apply(inputs=[xi, x], layer=Add, name="%s-Add" % feed_forward_name)
         x = self.apply(
             inputs=self.simplify([x, z]),
             layer=LayerNormalization,
@@ -1089,14 +1049,13 @@ class NEZHA(BERT):
             hidden_units=self.layer_norm_conds[1],
             hidden_activation=self.layer_norm_conds[2],
             hidden_initializer=self.initializer,
-            name='%s-Norm' % feed_forward_name
+            name="%s-Norm" % feed_forward_name,
         )
 
         return x
 
     def compute_position_bias(self, inputs=None):
-        """经典相对位置编码
-        """
+        """经典相对位置编码"""
         if self.position_bias is None:
 
             x = inputs
@@ -1105,9 +1064,9 @@ class NEZHA(BERT):
                 layer=RelativePositionEmbedding,
                 input_dim=2 * 64 + 1,
                 output_dim=self.attention_key_size,
-                embeddings_initializer='Sinusoidal',
-                name='Embedding-Relative-Position',
-                trainable=False
+                embeddings_initializer="Sinusoidal",
+                name="Embedding-Relative-Position",
+                trainable=False,
             )
 
         return self.position_bias
@@ -1117,6 +1076,7 @@ class RoFormer(NEZHA):
     """旋转式位置编码的BERT模型
     链接：https://kexue.fm/archives/8265
     """
+
     def apply_main_layers(self, inputs, index):
         """RoFormer的主体是基于Self-Attention的模块
         顺序：Att --> Add --> LN --> FFN --> Add --> LN
@@ -1124,16 +1084,16 @@ class RoFormer(NEZHA):
         x = inputs
         z = self.layer_norm_conds[0]
 
-        attention_name = 'Transformer-%d-MultiHeadSelfAttention' % index
-        feed_forward_name = 'Transformer-%d-FeedForward' % index
+        attention_name = "Transformer-%d-MultiHeadSelfAttention" % index
+        feed_forward_name = "Transformer-%d-FeedForward" % index
         attention_mask = self.compute_attention_bias(index)
         position_bias = self.compute_position_bias(x)
 
         # Self Attention
         xi, x = x, [x, x, x, position_bias]
-        arguments = {'a_bias': None, 'p_bias': 'rotary'}
+        arguments = {"a_bias": None, "p_bias": "rotary"}
         if attention_mask is not None:
-            arguments['a_bias'] = True
+            arguments["a_bias"] = True
             x.insert(3, attention_mask)
 
         x = self.apply(
@@ -1146,17 +1106,15 @@ class RoFormer(NEZHA):
             key_size=self.attention_key_size,
             attention_dropout=self.attention_dropout_rate,
             kernel_initializer=self.initializer,
-            name=attention_name
+            name=attention_name,
         )
         x = self.apply(
             inputs=x,
             layer=Dropout,
             rate=self.dropout_rate,
-            name='%s-Dropout' % attention_name
+            name="%s-Dropout" % attention_name,
         )
-        x = self.apply(
-            inputs=[xi, x], layer=Add, name='%s-Add' % attention_name
-        )
+        x = self.apply(inputs=[xi, x], layer=Add, name="%s-Add" % attention_name)
         x = self.apply(
             inputs=self.simplify([x, z]),
             layer=LayerNormalization,
@@ -1164,7 +1122,7 @@ class RoFormer(NEZHA):
             hidden_units=self.layer_norm_conds[1],
             hidden_activation=self.layer_norm_conds[2],
             hidden_initializer=self.initializer,
-            name='%s-Norm' % attention_name
+            name="%s-Norm" % attention_name,
         )
 
         # Feed Forward
@@ -1175,17 +1133,15 @@ class RoFormer(NEZHA):
             units=self.intermediate_size,
             activation=self.hidden_act,
             kernel_initializer=self.initializer,
-            name=feed_forward_name
+            name=feed_forward_name,
         )
         x = self.apply(
             inputs=x,
             layer=Dropout,
             rate=self.dropout_rate,
-            name='%s-Dropout' % feed_forward_name
+            name="%s-Dropout" % feed_forward_name,
         )
-        x = self.apply(
-            inputs=[xi, x], layer=Add, name='%s-Add' % feed_forward_name
-        )
+        x = self.apply(inputs=[xi, x], layer=Add, name="%s-Add" % feed_forward_name)
         x = self.apply(
             inputs=self.simplify([x, z]),
             layer=LayerNormalization,
@@ -1193,14 +1149,13 @@ class RoFormer(NEZHA):
             hidden_units=self.layer_norm_conds[1],
             hidden_activation=self.layer_norm_conds[2],
             hidden_initializer=self.initializer,
-            name='%s-Norm' % feed_forward_name
+            name="%s-Norm" % feed_forward_name,
         )
 
         return x
 
     def compute_position_bias(self, inputs=None):
-        """Sinusoidal位置编码（直接返回）
-        """
+        """Sinusoidal位置编码（直接返回）"""
         if self.position_bias is None:
 
             if self.custom_position_ids:
@@ -1212,9 +1167,9 @@ class RoFormer(NEZHA):
                 inputs=x,
                 layer=SinusoidalPositionEmbedding,
                 output_dim=self.attention_key_size,
-                merge_mode='zero',
+                merge_mode="zero",
                 custom_position_ids=self.custom_position_ids,
-                name='Embedding-Rotary-Position'
+                name="Embedding-Rotary-Position",
             )
 
         return self.position_bias
@@ -1224,20 +1179,19 @@ class RoFormerV2(RoFormer):
     """RoFormerV2
     改动：去掉bias，简化Norm，优化初始化等。
     """
+
     def initializer(self, shape, dtype=None, order=2, gain=1.0):
-        """使用截断正态分布初始化
-        """
+        """使用截断正态分布初始化"""
         if shape[0] > 10000 or shape[0] < 10:
             hidden_size = shape[1]
         else:
             hidden_size = shape[0]
-        gain *= self.num_hidden_layers**(-1. / order)
+        gain *= self.num_hidden_layers ** (-1.0 / order)
         stddev = 1.13684723 / hidden_size**0.5 * gain
         return K.truncated_normal(shape, stddev=stddev)
 
     def apply_embeddings(self, inputs):
-        """RoFormerV2的embedding是token、segment两者embedding之和
-        """
+        """RoFormerV2的embedding是token、segment两者embedding之和"""
         inputs = inputs[:]
         x = inputs.pop(0)
         if self.segment_vocab_size > 0:
@@ -1250,29 +1204,24 @@ class RoFormerV2(RoFormer):
             output_dim=self.embedding_size,
             embeddings_initializer=self.initializer,
             mask_zero=True,
-            name='Embedding-Token'
+            name="Embedding-Token",
         )
         if self.segment_vocab_size > 0:
             if self.shared_segment_embeddings:
-                name = 'Embedding-Token'
+                name = "Embedding-Token"
             else:
-                name = 'Embedding-Segment'
+                name = "Embedding-Segment"
             s = self.apply(
                 inputs=s,
                 layer=Embedding,
                 input_dim=self.segment_vocab_size,
                 output_dim=self.embedding_size,
                 embeddings_initializer=self.initializer,
-                name=name
+                name=name,
             )
-            x = self.apply(
-                inputs=[x, s], layer=Add, name='Embedding-Token-Segment'
-            )
+            x = self.apply(inputs=[x, s], layer=Add, name="Embedding-Token-Segment")
         x = self.apply(
-            inputs=x,
-            layer=Dropout,
-            rate=self.dropout_rate,
-            name='Embedding-Dropout'
+            inputs=x, layer=Dropout, rate=self.dropout_rate, name="Embedding-Dropout"
         )
         x = self.apply(
             inputs=x,
@@ -1280,7 +1229,7 @@ class RoFormerV2(RoFormer):
             zero_mean=False,
             scale=False,
             offset=False,
-            name='Embedding-Norm'
+            name="Embedding-Norm",
         )
         if self.embedding_size != self.hidden_size:
             x = self.apply(
@@ -1289,7 +1238,7 @@ class RoFormerV2(RoFormer):
                 units=self.hidden_size,
                 use_bias=False,
                 kernel_initializer=self.initializer,
-                name='Embedding-Mapping'
+                name="Embedding-Mapping",
             )
 
         return x
@@ -1300,17 +1249,17 @@ class RoFormerV2(RoFormer):
         """
         x = inputs
 
-        attention_name = 'Transformer-%d-MultiHeadSelfAttention' % index
-        feed_forward_name = 'Transformer-%d-FeedForward' % index
+        attention_name = "Transformer-%d-MultiHeadSelfAttention" % index
+        feed_forward_name = "Transformer-%d-FeedForward" % index
         attention_mask = self.compute_attention_bias(index)
         position_bias = self.compute_position_bias(x)
 
         # Self Attention
         xi = x
         x = [x, x, x, position_bias]
-        arguments = {'a_bias': None, 'p_bias': 'rotary'}
+        arguments = {"a_bias": None, "p_bias": "rotary"}
         if attention_mask is not None:
-            arguments['a_bias'] = True
+            arguments["a_bias"] = True
             x.insert(3, attention_mask)
         x = self.apply(
             inputs=x,
@@ -1323,24 +1272,22 @@ class RoFormerV2(RoFormer):
             use_bias=False,
             attention_dropout=self.attention_dropout_rate,
             kernel_initializer=self.initializer,
-            name=attention_name
+            name=attention_name,
         )
         x = self.apply(
             inputs=x,
             layer=Dropout,
             rate=self.dropout_rate,
-            name='%s-Dropout' % attention_name
+            name="%s-Dropout" % attention_name,
         )
-        x = self.apply(
-            inputs=[xi, x], layer=Add, name='%s-Add' % attention_name
-        )
+        x = self.apply(inputs=[xi, x], layer=Add, name="%s-Add" % attention_name)
         x = self.apply(
             inputs=x,
             layer=LayerNormalization,
             zero_mean=False,
             scale=False,
             offset=False,
-            name='%s-Norm' % attention_name
+            name="%s-Norm" % attention_name,
         )
 
         # Feed Forward
@@ -1352,31 +1299,28 @@ class RoFormerV2(RoFormer):
             activation=self.hidden_act,
             use_bias=False,
             kernel_initializer=self.initializer,
-            name=feed_forward_name
+            name=feed_forward_name,
         )
         x = self.apply(
             inputs=x,
             layer=Dropout,
             rate=self.dropout_rate,
-            name='%s-Dropout' % feed_forward_name
+            name="%s-Dropout" % feed_forward_name,
         )
-        x = self.apply(
-            inputs=[xi, x], layer=Add, name='%s-Add' % feed_forward_name
-        )
+        x = self.apply(inputs=[xi, x], layer=Add, name="%s-Add" % feed_forward_name)
         x = self.apply(
             inputs=x,
             layer=LayerNormalization,
             zero_mean=False,
             scale=False,
             offset=False,
-            name='%s-Norm' % feed_forward_name
+            name="%s-Norm" % feed_forward_name,
         )
 
         return x
 
     def apply_final_layers(self, inputs):
-        """剩余部分
-        """
+        """剩余部分"""
         x = inputs
 
         if self.with_mlm:
@@ -1388,40 +1332,36 @@ class RoFormerV2(RoFormer):
                     units=self.embedding_size,
                     use_bias=False,
                     kernel_initializer=self.initializer,
-                    name='Output-Mapping'
+                    name="Output-Mapping",
                 )
             x = self.apply(
                 inputs=x,
                 layer=Dropout,
                 rate=self.dropout_rate,
-                name='Output-MLM-Dropout'
+                name="Output-MLM-Dropout",
             )
-            mlm_activation = 'softmax' if self.with_mlm is True else self.with_mlm
+            mlm_activation = "softmax" if self.with_mlm is True else self.with_mlm
             x = self.apply(
                 inputs=x,
                 layer=Embedding,
-                arguments={'mode': 'dense'},
-                name='Embedding-Token'
+                arguments={"mode": "dense"},
+                name="Embedding-Token",
             )
             x = self.apply(
                 inputs=x,
                 layer=Activation,
                 activation=mlm_activation,
-                name='Output-MLM-Activation'
+                name="Output-MLM-Activation",
             )
 
         return x
 
     def variable_mapping(self):
-        """删掉部分权重映射
-        """
+        """删掉部分权重映射"""
         mapping = super(RoFormerV2, self).variable_mapping()
 
         for k, v in mapping.items():
-            v = [
-                i for i in v
-                if not string_matching(i, ['beta', 'gamma', 'bias'])
-            ]
+            v = [i for i in v if not string_matching(i, ["beta", "gamma", "bias"])]
             mapping[k] = v
 
         return mapping
@@ -1431,13 +1371,10 @@ class ELECTRA(BERT):
     """Google推出的ELECTRA模型
     链接：https://arxiv.org/abs/2003.10555
     """
+
     @insert_arguments(with_discriminator=False)
-    @delete_arguments('with_pool', 'with_mlm')
-    def __init__(
-        self,
-        max_position,  # 序列最大长度
-        **kwargs  # 其余参数
-    ):
+    @delete_arguments("with_pool", "with_mlm")
+    def __init__(self, max_position, **kwargs):  # 序列最大长度  # 其余参数
         super(ELECTRA, self).__init__(max_position, **kwargs)
 
     def apply_final_layers(self, inputs):
@@ -1445,7 +1382,7 @@ class ELECTRA(BERT):
 
         if self.with_discriminator:
             if self.with_discriminator is True:
-                final_activation = 'sigmoid'
+                final_activation = "sigmoid"
             else:
                 final_activation = self.with_discriminator
             x = self.apply(
@@ -1454,7 +1391,7 @@ class ELECTRA(BERT):
                 units=self.hidden_size,
                 activation=self.hidden_act,
                 kernel_initializer=self.initializer,
-                name='Discriminator-Dense'
+                name="Discriminator-Dense",
             )
             x = self.apply(
                 inputs=x,
@@ -1462,37 +1399,35 @@ class ELECTRA(BERT):
                 units=1,
                 activation=final_activation,
                 kernel_initializer=self.initializer,
-                name='Discriminator-Prediction'
+                name="Discriminator-Prediction",
             )
 
         return x
 
     def load_variable(self, checkpoint, name):
-        """加载单个变量的函数
-        """
+        """加载单个变量的函数"""
         variable = super(ELECTRA, self).load_variable(checkpoint, name)
-        if name == 'electra/embeddings/word_embeddings':
+        if name == "electra/embeddings/word_embeddings":
             return self.load_embeddings(variable)
         else:
             return variable
 
     def variable_mapping(self):
         mapping = super(ELECTRA, self).variable_mapping()
-        mapping['Embedding-Mapping'] = [
-            'electra/embeddings_project/kernel',
-            'electra/embeddings_project/bias',
+        mapping["Embedding-Mapping"] = [
+            "electra/embeddings_project/kernel",
+            "electra/embeddings_project/bias",
         ]
         mapping = {
-            k: [i.replace('bert/', 'electra/') for i in v]
-            for k, v in mapping.items()
+            k: [i.replace("bert/", "electra/") for i in v] for k, v in mapping.items()
         }
-        mapping['Discriminator-Dense'] = [
-            'discriminator_predictions/dense/kernel',
-            'discriminator_predictions/dense/bias',
+        mapping["Discriminator-Dense"] = [
+            "discriminator_predictions/dense/kernel",
+            "discriminator_predictions/dense/bias",
         ]
-        mapping['Discriminator-Prediction'] = [
-            'discriminator_predictions/dense_1/kernel',
-            'discriminator_predictions/dense_1/bias',
+        mapping["Discriminator-Prediction"] = [
+            "discriminator_predictions/dense_1/kernel",
+            "discriminator_predictions/dense_1/bias",
         ]
         return mapping
 
@@ -1501,8 +1436,9 @@ class GPT(LM_Mask, BERT):
     """构建GPT模型
     链接：https://github.com/openai/finetune-transformer-lm
     """
-    @insert_arguments(final_activation='softmax')
-    @delete_arguments('with_pool', 'with_mlm')
+
+    @insert_arguments(final_activation="softmax")
+    @delete_arguments("with_pool", "with_mlm")
     def __init__(self, **kwargs):
         super(GPT, self).__init__(**kwargs)
 
@@ -1526,40 +1462,35 @@ class GPT(LM_Mask, BERT):
             output_dim=self.embedding_size,
             embeddings_initializer=self.initializer,
             mask_zero=True,
-            name='Embedding-Token'
+            name="Embedding-Token",
         )
         if self.segment_vocab_size > 0:
             if self.shared_segment_embeddings:
-                name = 'Embedding-Token'
+                name = "Embedding-Token"
             else:
-                name = 'Embedding-Segment'
+                name = "Embedding-Segment"
             s = self.apply(
                 inputs=s,
                 layer=Embedding,
                 input_dim=self.segment_vocab_size,
                 output_dim=self.embedding_size,
                 embeddings_initializer=self.initializer,
-                name=name
+                name=name,
             )
-            x = self.apply(
-                inputs=[x, s], layer=Add, name='Embedding-Token-Segment'
-            )
+            x = self.apply(inputs=[x, s], layer=Add, name="Embedding-Token-Segment")
         x = self.apply(
             inputs=self.simplify([x, p]),
             layer=PositionEmbedding,
             input_dim=self.max_position,
             output_dim=self.embedding_size,
-            merge_mode='add',
+            merge_mode="add",
             hierarchical=self.hierarchical_position,
             embeddings_initializer=self.initializer,
             custom_position_ids=self.custom_position_ids,
-            name='Embedding-Position'
+            name="Embedding-Position",
         )
         x = self.apply(
-            inputs=x,
-            layer=Dropout,
-            rate=self.dropout_rate,
-            name='Embedding-Dropout'
+            inputs=x, layer=Dropout, rate=self.dropout_rate, name="Embedding-Dropout"
         )
         if self.embedding_size != self.hidden_size:
             x = self.apply(
@@ -1567,50 +1498,44 @@ class GPT(LM_Mask, BERT):
                 layer=Dense,
                 units=self.hidden_size,
                 kernel_initializer=self.initializer,
-                name='Embedding-Mapping'
+                name="Embedding-Mapping",
             )
 
         return x
 
     def apply_final_layers(self, inputs):
-        """剩余部分
-        """
+        """剩余部分"""
         x = inputs
 
         # Language Model部分
         x = self.apply(
             inputs=x,
             layer=Embedding,
-            arguments={'mode': 'dense'},
-            name='Embedding-Token'
+            arguments={"mode": "dense"},
+            name="Embedding-Token",
         )
         x = self.apply(
             inputs=x,
             layer=Activation,
             activation=self.final_activation,
-            name='LM-Activation'
+            name="LM-Activation",
         )
 
         return x
 
     def load_variable(self, checkpoint, name):
-        """加载单个变量的函数
-        """
+        """加载单个变量的函数"""
         variable = super(GPT, self).load_variable(checkpoint, name)
-        if name == 'gpt/embeddings/word_embeddings':
+        if name == "gpt/embeddings/word_embeddings":
             return self.load_embeddings(variable)
         else:
             return variable
 
     def variable_mapping(self):
-        """映射到TF版GPT权重格式
-        """
+        """映射到TF版GPT权重格式"""
         mapping = super(GPT, self).variable_mapping()
         mapping = {
-            k: [
-                i.replace('bert/', 'gpt/').replace('encoder', 'transformer')
-                for i in v
-            ]
+            k: [i.replace("bert/", "gpt/").replace("encoder", "transformer") for i in v]
             for k, v in mapping.items()
         }
         return mapping
@@ -1620,17 +1545,16 @@ class GPT2(GPT):
     """构建GPT2模型
     链接: https://github.com/openai/gpt-2
     """
+
     def get_inputs(self):
-        """GPT2的输入是token_ids
-        """
+        """GPT2的输入是token_ids"""
         x_in = self.apply(
-            layer=Input, shape=(self.sequence_length,), name='Input-Token'
+            layer=Input, shape=(self.sequence_length,), name="Input-Token"
         )
         return x_in
 
     def apply_embeddings(self, inputs):
-        """GPT2的embedding是token、position两者embedding之和
-        """
+        """GPT2的embedding是token、position两者embedding之和"""
         x = inputs
 
         x = self.apply(
@@ -1640,17 +1564,17 @@ class GPT2(GPT):
             output_dim=self.embedding_size,
             embeddings_initializer=self.initializer,
             mask_zero=True,
-            name='Embedding-Token'
+            name="Embedding-Token",
         )
         x = self.apply(
             inputs=x,
             layer=PositionEmbedding,
             input_dim=self.max_position,
             output_dim=self.embedding_size,
-            merge_mode='add',
+            merge_mode="add",
             hierarchical=self.hierarchical_position,
             embeddings_initializer=self.initializer,
-            name='Embedding-Position'
+            name="Embedding-Position",
         )
         if self.embedding_size != self.hidden_size:
             x = self.apply(
@@ -1658,7 +1582,7 @@ class GPT2(GPT):
                 layer=Dense,
                 units=self.hidden_size,
                 kernel_initializer=self.initializer,
-                name='Embedding-Mapping'
+                name="Embedding-Mapping",
             )
 
         return x
@@ -1670,8 +1594,8 @@ class GPT2(GPT):
         x = inputs
         z = self.layer_norm_conds[0]
 
-        attention_name = 'Transformer-%d-MultiHeadSelfAttention' % index
-        feed_forward_name = 'Transformer-%d-FeedForward' % index
+        attention_name = "Transformer-%d-MultiHeadSelfAttention" % index
+        feed_forward_name = "Transformer-%d-FeedForward" % index
         attention_mask = self.compute_attention_bias(index)
 
         # Self Attention
@@ -1684,29 +1608,27 @@ class GPT2(GPT):
             hidden_units=self.layer_norm_conds[1],
             hidden_activation=self.layer_norm_conds[2],
             hidden_initializer=self.initializer,
-            name='%s-Norm' % attention_name
+            name="%s-Norm" % attention_name,
         )
         x = self.apply(
             inputs=[x, x, x, attention_mask],
             layer=MultiHeadAttention,
-            arguments={'a_bias': True},
+            arguments={"a_bias": True},
             heads=self.num_attention_heads,
             head_size=self.attention_head_size,
             out_dim=self.hidden_size,
             key_size=self.attention_key_size,
             attention_dropout=self.attention_dropout_rate,
             kernel_initializer=self.initializer,
-            name=attention_name
+            name=attention_name,
         )
         x = self.apply(
             inputs=x,
             layer=Dropout,
             rate=self.dropout_rate,
-            name='%s-Dropout' % attention_name
+            name="%s-Dropout" % attention_name,
         )
-        x = self.apply(
-            inputs=[xi, x], layer=Add, name='%s-Add' % attention_name
-        )
+        x = self.apply(inputs=[xi, x], layer=Add, name="%s-Add" % attention_name)
 
         # Feed Forward
         xi = x
@@ -1718,7 +1640,7 @@ class GPT2(GPT):
             hidden_units=self.layer_norm_conds[1],
             hidden_activation=self.layer_norm_conds[2],
             hidden_initializer=self.initializer,
-            name='%s-Norm' % feed_forward_name
+            name="%s-Norm" % feed_forward_name,
         )
         x = self.apply(
             inputs=x,
@@ -1726,22 +1648,19 @@ class GPT2(GPT):
             units=self.intermediate_size,
             activation=self.hidden_act,
             kernel_initializer=self.initializer,
-            name=feed_forward_name
+            name=feed_forward_name,
         )
         x = self.apply(
             inputs=x,
             layer=Dropout,
             rate=self.dropout_rate,
-            name='%s-Dropout' % feed_forward_name
+            name="%s-Dropout" % feed_forward_name,
         )
-        x = self.apply(
-            inputs=[xi, x], layer=Add, name='%s-Add' % feed_forward_name
-        )
+        x = self.apply(inputs=[xi, x], layer=Add, name="%s-Add" % feed_forward_name)
         return x
 
     def apply_final_layers(self, inputs):
-        """剩余部分
-        """
+        """剩余部分"""
         x = inputs
         z = self.layer_norm_conds[0]
 
@@ -1753,29 +1672,25 @@ class GPT2(GPT):
             hidden_units=self.layer_norm_conds[1],
             hidden_activation=self.layer_norm_conds[2],
             hidden_initializer=self.initializer,
-            name='Output-Norm'
+            name="Output-Norm",
         )
         x = self.apply(
-            inputs=x,
-            layer=Dropout,
-            rate=self.dropout_rate,
-            name='Output-Dropout'
+            inputs=x, layer=Dropout, rate=self.dropout_rate, name="Output-Dropout"
         )
         x = super(GPT2, self).apply_final_layers(x)
 
         return x
 
     def variable_mapping(self):
-        """映射到TF版GPT2权重格式
-        """
+        """映射到TF版GPT2权重格式"""
         mapping = super(GPT2, self).variable_mapping()
         mapping = {
-            k: [i.replace('output/LayerNorm', 'input/LayerNorm') for i in v]
+            k: [i.replace("output/LayerNorm", "input/LayerNorm") for i in v]
             for k, v in mapping.items()
         }
-        mapping['Output-Norm'] = [
-            'gpt/output/LayerNorm/beta',
-            'gpt/output/LayerNorm/gamma',
+        mapping["Output-Norm"] = [
+            "gpt/output/LayerNorm/beta",
+            "gpt/output/LayerNorm/gamma",
         ]
 
         return mapping
@@ -1787,17 +1702,16 @@ class GPT2_ML(GPT):
     注意：GPT2_ML虽然号称GPT2，但是它的结构其实更接近GPT，它自称GPT2的
          原因大概是因为它开源的版本参数量达到了GPT2的15亿参数。
     """
+
     def get_inputs(self):
-        """GPT2_ML的输入是token_ids
-        """
+        """GPT2_ML的输入是token_ids"""
         x_in = self.apply(
-            layer=Input, shape=(self.sequence_length,), name='Input-Token'
+            layer=Input, shape=(self.sequence_length,), name="Input-Token"
         )
         return x_in
 
     def apply_embeddings(self, inputs):
-        """GPT2_ML的embedding是token、position两者embedding之和
-        """
+        """GPT2_ML的embedding是token、position两者embedding之和"""
         x = inputs
         z = self.layer_norm_conds[0]
 
@@ -1808,17 +1722,17 @@ class GPT2_ML(GPT):
             output_dim=self.embedding_size,
             embeddings_initializer=self.initializer,
             mask_zero=True,
-            name='Embedding-Token'
+            name="Embedding-Token",
         )
         x = self.apply(
             inputs=x,
             layer=PositionEmbedding,
             input_dim=self.max_position,
             output_dim=self.embedding_size,
-            merge_mode='add',
+            merge_mode="add",
             hierarchical=self.hierarchical_position,
             embeddings_initializer=self.initializer,
-            name='Embedding-Position'
+            name="Embedding-Position",
         )
         x = self.apply(
             inputs=self.simplify([x, z]),
@@ -1828,7 +1742,7 @@ class GPT2_ML(GPT):
             hidden_units=self.layer_norm_conds[1],
             hidden_activation=self.layer_norm_conds[2],
             hidden_initializer=self.initializer,
-            name='Embedding-Norm'
+            name="Embedding-Norm",
         )
         if self.embedding_size != self.hidden_size:
             x = self.apply(
@@ -1836,7 +1750,7 @@ class GPT2_ML(GPT):
                 layer=Dense,
                 units=self.hidden_size,
                 kernel_initializer=self.initializer,
-                name='Embedding-Mapping'
+                name="Embedding-Mapping",
             )
 
         return x
@@ -1848,12 +1762,12 @@ class GPT2_ML(GPT):
         x = inputs
         z = self.layer_norm_conds[0]
 
-        attention_name = 'Transformer-%d-MultiHeadSelfAttention' % index
-        feed_forward_name = 'Transformer-%d-FeedForward' % index
+        attention_name = "Transformer-%d-MultiHeadSelfAttention" % index
+        feed_forward_name = "Transformer-%d-FeedForward" % index
         attention_mask = self.compute_attention_bias(index)
 
         # Self Attention
-        xi, x, arguments = x, [x, x, x, attention_mask], {'a_bias': True}
+        xi, x, arguments = x, [x, x, x, attention_mask], {"a_bias": True}
 
         x = self.apply(
             inputs=x,
@@ -1865,17 +1779,15 @@ class GPT2_ML(GPT):
             key_size=self.attention_key_size,
             attention_dropout=self.attention_dropout_rate,
             kernel_initializer=self.initializer,
-            name=attention_name
+            name=attention_name,
         )
         x = self.apply(
             inputs=x,
             layer=Dropout,
             rate=self.dropout_rate,
-            name='%s-Dropout' % attention_name
+            name="%s-Dropout" % attention_name,
         )
-        x = self.apply(
-            inputs=[xi, x], layer=Add, name='%s-Add' % attention_name
-        )
+        x = self.apply(inputs=[xi, x], layer=Add, name="%s-Add" % attention_name)
 
         # Feed Forward
         xi = x
@@ -1887,7 +1799,7 @@ class GPT2_ML(GPT):
             hidden_units=self.layer_norm_conds[1],
             hidden_activation=self.layer_norm_conds[2],
             hidden_initializer=self.initializer,
-            name='%s-Norm-0' % feed_forward_name
+            name="%s-Norm-0" % feed_forward_name,
         )
         x = self.apply(
             inputs=x,
@@ -1895,17 +1807,15 @@ class GPT2_ML(GPT):
             units=self.intermediate_size,
             activation=self.hidden_act,
             kernel_initializer=self.initializer,
-            name=feed_forward_name
+            name=feed_forward_name,
         )
         x = self.apply(
             inputs=x,
             layer=Dropout,
             rate=self.dropout_rate,
-            name='%s-Dropout' % feed_forward_name
+            name="%s-Dropout" % feed_forward_name,
         )
-        x = self.apply(
-            inputs=[xi, x], layer=Add, name='%s-Add' % feed_forward_name
-        )
+        x = self.apply(inputs=[xi, x], layer=Add, name="%s-Add" % feed_forward_name)
         x = self.apply(
             inputs=self.simplify([x, z]),
             layer=LayerNormalization,
@@ -1914,60 +1824,64 @@ class GPT2_ML(GPT):
             hidden_units=self.layer_norm_conds[1],
             hidden_activation=self.layer_norm_conds[2],
             hidden_initializer=self.initializer,
-            name='%s-Norm-1' % feed_forward_name
+            name="%s-Norm-1" % feed_forward_name,
         )
 
         return x
 
     def load_variable(self, checkpoint, name):
-        """加载单个变量的函数
-        """
+        """加载单个变量的函数"""
         variable = super(GPT2_ML, self).load_variable(checkpoint, name)
-        if name == 'newslm/embeddings/word_embed':
+        if name == "newslm/embeddings/word_embed":
             return self.load_embeddings(variable)
         else:
             return variable
 
     def variable_mapping(self):
-        """映射到官方GPT2_ML权重格式
-        """
+        """映射到官方GPT2_ML权重格式"""
         mapping = {
-            'Embedding-Token': ['newslm/embeddings/word_embed'],
-            'Embedding-Position': ['newslm/embeddings/pos_embed'],
-            'Embedding-Norm': [
-                'newslm/embeddings/LayerNorm_embed_norm/beta',
-                'newslm/embeddings/LayerNorm_embed_norm/gamma',
+            "Embedding-Token": ["newslm/embeddings/word_embed"],
+            "Embedding-Position": ["newslm/embeddings/pos_embed"],
+            "Embedding-Norm": [
+                "newslm/embeddings/LayerNorm_embed_norm/beta",
+                "newslm/embeddings/LayerNorm_embed_norm/gamma",
             ],
         }
 
         for i in range(self.num_hidden_layers):
-            prefix = 'newslm/layer%02d/' % i
-            mapping.update({
-                'Transformer-%d-MultiHeadSelfAttention' % i: [
-                    prefix + 'query_layer/kernel',
-                    prefix + 'query_layer/bias',
-                    prefix + 'key_layer/kernel',
-                    prefix + 'key_layer/bias',
-                    prefix + 'value_layer/kernel',
-                    prefix + 'value_layer/bias',
-                    prefix + 'context_projection_layer/kernel',
-                    prefix + 'context_projection_layer/bias',
-                ],
-                'Transformer-%d-FeedForward-Norm-0' % i: [
-                    prefix + 'LayerNorm_mlp_ln0/beta',
-                    prefix + 'LayerNorm_mlp_ln0/gamma',
-                ],
-                'Transformer-%d-FeedForward' % i: [
-                    prefix + 'intermediate/kernel',
-                    prefix + 'intermediate/bias',
-                    prefix + 'output/kernel',
-                    prefix + 'output/bias',
-                ],
-                'Transformer-%d-FeedForward-Norm-1' % i: [
-                    prefix + 'LayerNorm_mlp_ln1/beta',
-                    prefix + 'LayerNorm_mlp_ln1/gamma',
-                ],
-            })
+            prefix = "newslm/layer%02d/" % i
+            mapping.update(
+                {
+                    "Transformer-%d-MultiHeadSelfAttention"
+                    % i: [
+                        prefix + "query_layer/kernel",
+                        prefix + "query_layer/bias",
+                        prefix + "key_layer/kernel",
+                        prefix + "key_layer/bias",
+                        prefix + "value_layer/kernel",
+                        prefix + "value_layer/bias",
+                        prefix + "context_projection_layer/kernel",
+                        prefix + "context_projection_layer/bias",
+                    ],
+                    "Transformer-%d-FeedForward-Norm-0"
+                    % i: [
+                        prefix + "LayerNorm_mlp_ln0/beta",
+                        prefix + "LayerNorm_mlp_ln0/gamma",
+                    ],
+                    "Transformer-%d-FeedForward"
+                    % i: [
+                        prefix + "intermediate/kernel",
+                        prefix + "intermediate/bias",
+                        prefix + "output/kernel",
+                        prefix + "output/bias",
+                    ],
+                    "Transformer-%d-FeedForward-Norm-1"
+                    % i: [
+                        prefix + "LayerNorm_mlp_ln1/beta",
+                        prefix + "LayerNorm_mlp_ln1/gamma",
+                    ],
+                }
+            )
 
         return mapping
 
@@ -1981,113 +1895,125 @@ class T5_Base(Transformer):
     t5.1.1: https://github.com/google-research/text-to-text-transfer-transformer/blob/master/released_checkpoints.md#t511
     multilingual-t5: https://github.com/google-research/multilingual-t5
     """
-    @insert_arguments(version='t5.1.0')
+
+    @insert_arguments(version="t5.1.0")
     def __init__(self, **kwargs):
         super(T5_Base, self).__init__(**kwargs)
 
     def load_variable(self, checkpoint, name):
-        """加载单个变量的函数
-        """
+        """加载单个变量的函数"""
         variable = super(T5_Base, self).load_variable(checkpoint, name)
-        if name == 'shared/embedding':
+        if name == "shared/embedding":
             return self.load_embeddings(variable)
-        elif name == 'decoder/logits/kernel':
+        elif name == "decoder/logits/kernel":
             return self.load_embeddings(variable.T).T
-        elif 'relative_attention_bias' in name:
+        elif "relative_attention_bias" in name:
             return variable.T
         else:
             return variable
 
     def create_variable(self, name, value, dtype=None):
-        """在tensorflow中创建一个变量
-        """
-        if 'relative_attention_bias' in name:
+        """在tensorflow中创建一个变量"""
+        if "relative_attention_bias" in name:
             value = value.T
         return super(T5_Base, self).create_variable(name, value, dtype)
 
     def variable_mapping(self):
-        """映射到官方T5权重格式
-        """
+        """映射到官方T5权重格式"""
         mapping = {
-            'Embedding-Token': ['shared/embedding'],
-            'Encoder-Embedding-Relative-Position': [
-                'encoder/block_000/layer_000/SelfAttention/relative_attention_bias'
+            "Embedding-Token": ["shared/embedding"],
+            "Encoder-Embedding-Relative-Position": [
+                "encoder/block_000/layer_000/SelfAttention/relative_attention_bias"
             ],
-            'Encoder-Output-Norm': ['encoder/final_layer_norm/scale'],
-            'Decoder-Embedding-Relative-Position': [
-                'decoder/block_000/layer_000/SelfAttention/relative_attention_bias',
+            "Encoder-Output-Norm": ["encoder/final_layer_norm/scale"],
+            "Decoder-Embedding-Relative-Position": [
+                "decoder/block_000/layer_000/SelfAttention/relative_attention_bias",
             ],
-            'Decoder-Output-Norm': ['decoder/final_layer_norm/scale'],
+            "Decoder-Output-Norm": ["decoder/final_layer_norm/scale"],
         }
 
         for i in range(self.num_hidden_layers):
             # Encoder主体
-            prefix = 'encoder/block_%03d/' % i
-            mapping.update({
-                'Encoder-Transformer-%d-MultiHeadSelfAttention' % i: [
-                    prefix + 'layer_000/SelfAttention/q',
-                    prefix + 'layer_000/SelfAttention/k',
-                    prefix + 'layer_000/SelfAttention/v',
-                    prefix + 'layer_000/SelfAttention/o',
-                ],
-                'Encoder-Transformer-%d-MultiHeadSelfAttention-Norm' % i: [
-                    prefix + 'layer_000/layer_norm/scale',
-                ],
-                'Encoder-Transformer-%d-FeedForward' % i: [
-                    prefix + 'layer_001/DenseReluDense/wi/kernel',
-                    prefix + 'layer_001/DenseReluDense/wo/kernel',
-                ],
-                'Encoder-Transformer-%d-FeedForward-Norm' % i: [
-                    prefix + 'layer_001/layer_norm/scale',
-                ],
-            })
+            prefix = "encoder/block_%03d/" % i
+            mapping.update(
+                {
+                    "Encoder-Transformer-%d-MultiHeadSelfAttention"
+                    % i: [
+                        prefix + "layer_000/SelfAttention/q",
+                        prefix + "layer_000/SelfAttention/k",
+                        prefix + "layer_000/SelfAttention/v",
+                        prefix + "layer_000/SelfAttention/o",
+                    ],
+                    "Encoder-Transformer-%d-MultiHeadSelfAttention-Norm"
+                    % i: [
+                        prefix + "layer_000/layer_norm/scale",
+                    ],
+                    "Encoder-Transformer-%d-FeedForward"
+                    % i: [
+                        prefix + "layer_001/DenseReluDense/wi/kernel",
+                        prefix + "layer_001/DenseReluDense/wo/kernel",
+                    ],
+                    "Encoder-Transformer-%d-FeedForward-Norm"
+                    % i: [
+                        prefix + "layer_001/layer_norm/scale",
+                    ],
+                }
+            )
             # Decoder主体
-            prefix = 'decoder/block_%03d/' % i
-            mapping.update({
-                'Decoder-Transformer-%d-MultiHeadSelfAttention' % i: [
-                    prefix + 'layer_000/SelfAttention/q',
-                    prefix + 'layer_000/SelfAttention/k',
-                    prefix + 'layer_000/SelfAttention/v',
-                    prefix + 'layer_000/SelfAttention/o',
-                ],
-                'Decoder-Transformer-%d-MultiHeadSelfAttention-Norm' % i: [
-                    prefix + 'layer_000/layer_norm/scale',
-                ],
-                'Decoder-Transformer-%d-MultiHeadCrossAttention' % i: [
-                    prefix + 'layer_001/EncDecAttention/q',
-                    prefix + 'layer_001/EncDecAttention/k',
-                    prefix + 'layer_001/EncDecAttention/v',
-                    prefix + 'layer_001/EncDecAttention/o',
-                ],
-                'Decoder-Transformer-%d-MultiHeadCrossAttention-Norm' % i: [
-                    prefix + 'layer_001/layer_norm/scale',
-                ],
-                'Decoder-Transformer-%d-FeedForward' % i: [
-                    prefix + 'layer_002/DenseReluDense/wi/kernel',
-                    prefix + 'layer_002/DenseReluDense/wo/kernel',
-                ],
-                'Decoder-Transformer-%d-FeedForward-Norm' % i: [
-                    prefix + 'layer_002/layer_norm/scale',
-                ],
-            })
+            prefix = "decoder/block_%03d/" % i
+            mapping.update(
+                {
+                    "Decoder-Transformer-%d-MultiHeadSelfAttention"
+                    % i: [
+                        prefix + "layer_000/SelfAttention/q",
+                        prefix + "layer_000/SelfAttention/k",
+                        prefix + "layer_000/SelfAttention/v",
+                        prefix + "layer_000/SelfAttention/o",
+                    ],
+                    "Decoder-Transformer-%d-MultiHeadSelfAttention-Norm"
+                    % i: [
+                        prefix + "layer_000/layer_norm/scale",
+                    ],
+                    "Decoder-Transformer-%d-MultiHeadCrossAttention"
+                    % i: [
+                        prefix + "layer_001/EncDecAttention/q",
+                        prefix + "layer_001/EncDecAttention/k",
+                        prefix + "layer_001/EncDecAttention/v",
+                        prefix + "layer_001/EncDecAttention/o",
+                    ],
+                    "Decoder-Transformer-%d-MultiHeadCrossAttention-Norm"
+                    % i: [
+                        prefix + "layer_001/layer_norm/scale",
+                    ],
+                    "Decoder-Transformer-%d-FeedForward"
+                    % i: [
+                        prefix + "layer_002/DenseReluDense/wi/kernel",
+                        prefix + "layer_002/DenseReluDense/wo/kernel",
+                    ],
+                    "Decoder-Transformer-%d-FeedForward-Norm"
+                    % i: [
+                        prefix + "layer_002/layer_norm/scale",
+                    ],
+                }
+            )
 
-        if self.version.endswith('t5.1.1'):
-            mapping['Decoder-Output-LM'] = ['decoder/logits/kernel']
+        if self.version.endswith("t5.1.1"):
+            mapping["Decoder-Output-LM"] = ["decoder/logits/kernel"]
             for i in range(self.num_hidden_layers):
                 for layer in [
-                    'Encoder-Transformer-%d-FeedForward' % i,
-                    'Decoder-Transformer-%d-FeedForward' % i
+                    "Encoder-Transformer-%d-FeedForward" % i,
+                    "Decoder-Transformer-%d-FeedForward" % i,
                 ]:
                     mapping[layer] = [
-                        mapping[layer][0][:-7] + '_0' + mapping[layer][0][-7:],
-                        mapping[layer][0][:-7] + '_1' + mapping[layer][0][-7:],
-                        mapping[layer][1]
+                        mapping[layer][0][:-7] + "_0" + mapping[layer][0][-7:],
+                        mapping[layer][0][:-7] + "_1" + mapping[layer][0][-7:],
+                        mapping[layer][1],
                     ]
-            if self.version == 'mt5.1.1':
-                mapping['Encoder-Output-Norm'] = ['encoder/rms_norm/scale']
-                mapping['Decoder-Output-Norm'] = ['decoder/rms_norm/scale']
+            if self.version == "mt5.1.1":
+                mapping["Encoder-Output-Norm"] = ["encoder/rms_norm/scale"]
+                mapping["Decoder-Output-Norm"] = ["decoder/rms_norm/scale"]
                 mapping = {
-                    k: [i.replace('layer_norm', 'rms_norm') for i in v]
+                    k: [i.replace("layer_norm", "rms_norm") for i in v]
                     for k, v in mapping.items()
                 }
 
@@ -2095,15 +2021,12 @@ class T5_Base(Transformer):
 
 
 class T5_Encoder(T5_Base):
-    """Google的T5模型（Encoder）
-    """
+    """Google的T5模型（Encoder）"""
+
     def get_inputs(self):
-        """T5的Encoder的输入只有token_ids
-        """
+        """T5的Encoder的输入只有token_ids"""
         x_in = self.apply(
-            layer=Input,
-            shape=(self.sequence_length,),
-            name='Encoder-Input-Token'
+            layer=Input, shape=(self.sequence_length,), name="Encoder-Input-Token"
         )
         return x_in
 
@@ -2120,13 +2043,13 @@ class T5_Encoder(T5_Base):
             output_dim=self.embedding_size,
             embeddings_initializer=self.initializer,
             mask_zero=True,
-            name='Embedding-Token'
+            name="Embedding-Token",
         )
         x = self.apply(
             inputs=x,
             layer=Dropout,
             rate=self.dropout_rate,
-            name='Encoder-Embedding-Dropout'
+            name="Encoder-Embedding-Dropout",
         )
         if self.embedding_size != self.hidden_size:
             x = self.apply(
@@ -2134,7 +2057,7 @@ class T5_Encoder(T5_Base):
                 layer=Dense,
                 units=self.hidden_size,
                 kernel_initializer=self.initializer,
-                name='Encoder-Embedding-Mapping'
+                name="Encoder-Embedding-Mapping",
             )
 
         return x
@@ -2146,8 +2069,8 @@ class T5_Encoder(T5_Base):
         x = inputs
         z = self.layer_norm_conds[0]
 
-        attention_name = 'Encoder-Transformer-%d-MultiHeadSelfAttention' % index
-        feed_forward_name = 'Encoder-Transformer-%d-FeedForward' % index
+        attention_name = "Encoder-Transformer-%d-MultiHeadSelfAttention" % index
+        feed_forward_name = "Encoder-Transformer-%d-FeedForward" % index
         attention_mask = self.compute_attention_bias(index)
         position_bias = self.compute_position_bias(x)
 
@@ -2163,12 +2086,12 @@ class T5_Encoder(T5_Base):
             hidden_units=self.layer_norm_conds[1],
             hidden_activation=self.layer_norm_conds[2],
             hidden_initializer=self.initializer,
-            name='%s-Norm' % attention_name
+            name="%s-Norm" % attention_name,
         )
         x = self.apply(
             inputs=[x, x, x, position_bias],
             layer=MultiHeadAttention,
-            arguments={'p_bias': 't5_relative'},
+            arguments={"p_bias": "t5_relative"},
             heads=self.num_attention_heads,
             head_size=self.attention_head_size,
             out_dim=self.hidden_size,
@@ -2177,17 +2100,15 @@ class T5_Encoder(T5_Base):
             attention_scale=False,
             attention_dropout=self.attention_dropout_rate,
             kernel_initializer=self.initializer,
-            name=attention_name
+            name=attention_name,
         )
         x = self.apply(
             inputs=x,
             layer=Dropout,
             rate=self.dropout_rate,
-            name='%s-Dropout' % attention_name
+            name="%s-Dropout" % attention_name,
         )
-        x = self.apply(
-            inputs=[xi, x], layer=Add, name='%s-Add' % attention_name
-        )
+        x = self.apply(inputs=[xi, x], layer=Add, name="%s-Add" % attention_name)
 
         # Feed Forward
         xi = x
@@ -2201,7 +2122,7 @@ class T5_Encoder(T5_Base):
             hidden_units=self.layer_norm_conds[1],
             hidden_activation=self.layer_norm_conds[2],
             hidden_initializer=self.initializer,
-            name='%s-Norm' % feed_forward_name
+            name="%s-Norm" % feed_forward_name,
         )
         x = self.apply(
             inputs=x,
@@ -2210,23 +2131,20 @@ class T5_Encoder(T5_Base):
             activation=self.hidden_act,
             use_bias=False,
             kernel_initializer=self.initializer,
-            name=feed_forward_name
+            name=feed_forward_name,
         )
         x = self.apply(
             inputs=x,
             layer=Dropout,
             rate=self.dropout_rate,
-            name='%s-Dropout' % feed_forward_name
+            name="%s-Dropout" % feed_forward_name,
         )
-        x = self.apply(
-            inputs=[xi, x], layer=Add, name='%s-Add' % feed_forward_name
-        )
+        x = self.apply(inputs=[xi, x], layer=Add, name="%s-Add" % feed_forward_name)
 
         return x
 
     def apply_final_layers(self, inputs):
-        """剩余部分
-        """
+        """剩余部分"""
         x = inputs
         z = self.layer_norm_conds[0]
 
@@ -2240,20 +2158,19 @@ class T5_Encoder(T5_Base):
             hidden_units=self.layer_norm_conds[1],
             hidden_activation=self.layer_norm_conds[2],
             hidden_initializer=self.initializer,
-            name='Encoder-Output-Norm'
+            name="Encoder-Output-Norm",
         )
         x = self.apply(
             inputs=x,
             layer=Dropout,
             rate=self.dropout_rate,
-            name='Encoder-Output-Dropout'
+            name="Encoder-Output-Dropout",
         )
 
         return x
 
     def compute_position_bias(self, inputs=None):
-        """T5相对位置编码
-        """
+        """T5相对位置编码"""
         if self.position_bias is None:
 
             x = inputs
@@ -2264,7 +2181,7 @@ class T5_Encoder(T5_Base):
                 output_dim=self.num_attention_heads,
                 bidirectional=True,
                 embeddings_initializer=self.initializer,
-                name='Encoder-Embedding-Relative-Position'
+                name="Encoder-Embedding-Relative-Position",
             )
             self.position_bias = p
 
@@ -2272,24 +2189,21 @@ class T5_Encoder(T5_Base):
 
 
 class T5_Decoder(LM_Mask, T5_Base):
-    """Google的T5模型（Decoder）
-    """
+    """Google的T5模型（Decoder）"""
+
     def __init__(self, with_lm=True, **kwargs):
         super(T5_Decoder, self).__init__(**kwargs)
         self.with_lm = with_lm
 
     def get_inputs(self):
-        """T5的Decoder的输入为context序列和token_ids
-        """
+        """T5的Decoder的输入为context序列和token_ids"""
         c_in = self.apply(
             layer=Input,
             shape=(self.sequence_length, self.hidden_size),
-            name='Input-Context'
+            name="Input-Context",
         )
         x_in = self.apply(
-            layer=Input,
-            shape=(self.sequence_length,),
-            name='Decoder-Input-Token'
+            layer=Input, shape=(self.sequence_length,), name="Decoder-Input-Token"
         )
         return [c_in, x_in]
 
@@ -2306,13 +2220,13 @@ class T5_Decoder(LM_Mask, T5_Base):
             output_dim=self.embedding_size,
             embeddings_initializer=self.initializer,
             mask_zero=True,
-            name='Embedding-Token'
+            name="Embedding-Token",
         )
         x = self.apply(
             inputs=x,
             layer=Dropout,
             rate=self.dropout_rate,
-            name='Decoder-Embedding-Dropout'
+            name="Decoder-Embedding-Dropout",
         )
         if self.embedding_size != self.hidden_size:
             x = self.apply(
@@ -2320,7 +2234,7 @@ class T5_Decoder(LM_Mask, T5_Base):
                 layer=Dense,
                 units=self.hidden_size,
                 kernel_initializer=self.initializer,
-                name='Decoder-Embedding-Mapping'
+                name="Decoder-Embedding-Mapping",
             )
 
         return [c, x]
@@ -2332,9 +2246,9 @@ class T5_Decoder(LM_Mask, T5_Base):
         c, x = inputs
         z = self.layer_norm_conds[0]
 
-        self_attention_name = 'Decoder-Transformer-%d-MultiHeadSelfAttention' % index
-        cross_attention_name = 'Decoder-Transformer-%d-MultiHeadCrossAttention' % index
-        feed_forward_name = 'Decoder-Transformer-%d-FeedForward' % index
+        self_attention_name = "Decoder-Transformer-%d-MultiHeadSelfAttention" % index
+        cross_attention_name = "Decoder-Transformer-%d-MultiHeadCrossAttention" % index
+        feed_forward_name = "Decoder-Transformer-%d-FeedForward" % index
         attention_mask = self.compute_attention_bias(index)
         position_bias = self.compute_position_bias([x, c])
 
@@ -2350,15 +2264,12 @@ class T5_Decoder(LM_Mask, T5_Base):
             hidden_units=self.layer_norm_conds[1],
             hidden_activation=self.layer_norm_conds[2],
             hidden_initializer=self.initializer,
-            name='%s-Norm' % self_attention_name
+            name="%s-Norm" % self_attention_name,
         )
         x = self.apply(
             inputs=[x, x, x, attention_mask, position_bias[0]],
             layer=MultiHeadAttention,
-            arguments={
-                'a_bias': True,
-                'p_bias': 't5_relative'
-            },
+            arguments={"a_bias": True, "p_bias": "t5_relative"},
             heads=self.num_attention_heads,
             head_size=self.attention_head_size,
             out_dim=self.hidden_size,
@@ -2367,17 +2278,15 @@ class T5_Decoder(LM_Mask, T5_Base):
             attention_scale=False,
             attention_dropout=self.attention_dropout_rate,
             kernel_initializer=self.initializer,
-            name=self_attention_name
+            name=self_attention_name,
         )
         x = self.apply(
             inputs=x,
             layer=Dropout,
             rate=self.dropout_rate,
-            name='%s-Dropout' % self_attention_name
+            name="%s-Dropout" % self_attention_name,
         )
-        x = self.apply(
-            inputs=[xi, x], layer=Add, name='%s-Add' % self_attention_name
-        )
+        x = self.apply(inputs=[xi, x], layer=Add, name="%s-Add" % self_attention_name)
 
         # Cross Attention
         xi = x
@@ -2391,15 +2300,12 @@ class T5_Decoder(LM_Mask, T5_Base):
             hidden_units=self.layer_norm_conds[1],
             hidden_activation=self.layer_norm_conds[2],
             hidden_initializer=self.initializer,
-            name='%s-Norm' % cross_attention_name
+            name="%s-Norm" % cross_attention_name,
         )
         x = self.apply(
             inputs=[x, c, c, position_bias[1]],
             layer=MultiHeadAttention,
-            arguments={
-                'a_bias': None,
-                'p_bias': 't5_relative'
-            },
+            arguments={"a_bias": None, "p_bias": "t5_relative"},
             heads=self.num_attention_heads,
             head_size=self.attention_head_size,
             out_dim=self.hidden_size,
@@ -2408,17 +2314,15 @@ class T5_Decoder(LM_Mask, T5_Base):
             attention_scale=False,
             attention_dropout=self.attention_dropout_rate,
             kernel_initializer=self.initializer,
-            name=cross_attention_name
+            name=cross_attention_name,
         )
         x = self.apply(
             inputs=x,
             layer=Dropout,
             rate=self.dropout_rate,
-            name='%s-Dropout' % cross_attention_name
+            name="%s-Dropout" % cross_attention_name,
         )
-        x = self.apply(
-            inputs=[xi, x], layer=Add, name='%s-Add' % cross_attention_name
-        )
+        x = self.apply(inputs=[xi, x], layer=Add, name="%s-Add" % cross_attention_name)
 
         # Feed Forward
         xi = x
@@ -2432,7 +2336,7 @@ class T5_Decoder(LM_Mask, T5_Base):
             hidden_units=self.layer_norm_conds[1],
             hidden_activation=self.layer_norm_conds[2],
             hidden_initializer=self.initializer,
-            name='%s-Norm' % feed_forward_name
+            name="%s-Norm" % feed_forward_name,
         )
         x = self.apply(
             inputs=x,
@@ -2441,23 +2345,20 @@ class T5_Decoder(LM_Mask, T5_Base):
             activation=self.hidden_act,
             use_bias=False,
             kernel_initializer=self.initializer,
-            name=feed_forward_name
+            name=feed_forward_name,
         )
         x = self.apply(
             inputs=x,
             layer=Dropout,
             rate=self.dropout_rate,
-            name='%s-Dropout' % feed_forward_name
+            name="%s-Dropout" % feed_forward_name,
         )
-        x = self.apply(
-            inputs=[xi, x], layer=Add, name='%s-Add' % feed_forward_name
-        )
+        x = self.apply(inputs=[xi, x], layer=Add, name="%s-Add" % feed_forward_name)
 
         return [c, x]
 
     def apply_final_layers(self, inputs):
-        """剩余部分
-        """
+        """剩余部分"""
         c, x = inputs
         z = self.layer_norm_conds[0]
 
@@ -2471,20 +2372,20 @@ class T5_Decoder(LM_Mask, T5_Base):
             hidden_units=self.layer_norm_conds[1],
             hidden_activation=self.layer_norm_conds[2],
             hidden_initializer=self.initializer,
-            name='Decoder-Output-Norm'
+            name="Decoder-Output-Norm",
         )
         x = self.apply(
             inputs=x,
             layer=Dropout,
             rate=self.dropout_rate,
-            name='Decoder-Output-Dropout'
+            name="Decoder-Output-Dropout",
         )
         x = self.apply(
             inputs=x,
             layer=ScaleOffset,
-            scale=self.hidden_size**(-0.5),
+            scale=self.hidden_size ** (-0.5),
             offset=False,
-            name='Decoder-Output-Scale'
+            name="Decoder-Output-Scale",
         )
 
         if self.with_lm:
@@ -2495,21 +2396,21 @@ class T5_Decoder(LM_Mask, T5_Base):
                     layer=Dense,
                     units=self.embedding_size,
                     kernel_initializer=self.initializer,
-                    name='Decoder-Output-Mapping'
+                    name="Decoder-Output-Mapping",
                 )
-            lm_activation = 'softmax' if self.with_lm is True else self.with_lm
-            if self.version == 't5.1.0':
+            lm_activation = "softmax" if self.with_lm is True else self.with_lm
+            if self.version == "t5.1.0":
                 x = self.apply(
                     inputs=x,
                     layer=Embedding,
-                    arguments={'mode': 'dense'},
-                    name='Embedding-Token'
+                    arguments={"mode": "dense"},
+                    name="Embedding-Token",
                 )
                 x = self.apply(
                     inputs=x,
                     layer=Activation,
                     activation=lm_activation,
-                    name='Decoder-Output-LM-Activation'
+                    name="Decoder-Output-LM-Activation",
                 )
             else:
                 x = self.apply(
@@ -2519,14 +2420,13 @@ class T5_Decoder(LM_Mask, T5_Base):
                     activation=lm_activation,
                     use_bias=False,
                     kernel_initializer=self.initializer,
-                    name='Decoder-Output-LM'
+                    name="Decoder-Output-LM",
                 )
 
         return x
 
     def compute_attention_bias(self, inputs=None):
-        """修改LM Mask的序列长度（从 self.inputs[0] 改为 self.inputs[1] ）
-        """
+        """修改LM Mask的序列长度（从 self.inputs[0] 改为 self.inputs[1] ）"""
         old_inputs = self.inputs[:]
         self.inputs = [old_inputs[1]]
         mask = super(T5_Decoder, self).compute_attention_bias(inputs)
@@ -2534,8 +2434,7 @@ class T5_Decoder(LM_Mask, T5_Base):
         return mask
 
     def compute_position_bias(self, inputs=None):
-        """T5相对位置编码
-        """
+        """T5相对位置编码"""
         if self.position_bias is None:
 
             x, c = inputs
@@ -2546,7 +2445,7 @@ class T5_Decoder(LM_Mask, T5_Base):
                 output_dim=self.num_attention_heads,
                 bidirectional=False,
                 embeddings_initializer=self.initializer,
-                name='Decoder-Embedding-Relative-Position'
+                name="Decoder-Embedding-Relative-Position",
             )
             p2 = self.apply(
                 inputs=[x, c],
@@ -2555,7 +2454,7 @@ class T5_Decoder(LM_Mask, T5_Base):
                 output_dim=self.num_attention_heads,
                 bidirectional=False,
                 embeddings_initializer=self.initializer,
-                name='Decoder-Embedding-Relative-Position'
+                name="Decoder-Embedding-Relative-Position",
             )
             self.position_bias = (p1, p2)
 
@@ -2563,22 +2462,21 @@ class T5_Decoder(LM_Mask, T5_Base):
 
 
 class T5(T5_Base):
-    """Google的T5模型（Encoder-Decoder）
-    """
+    """Google的T5模型（Encoder-Decoder）"""
+
     def __init__(self, **kwargs):
         super(T5, self).__init__(**kwargs)
-        kwargs['layers'] = self.layers
-        e_name, d_name = 'Encoder', 'Decoder'
-        if 'name' in kwargs:
-            e_name = '%s_%s' % (kwargs['name'], e_name)
-            d_name = '%s_%s' % (kwargs['name'], d_name)
-            del kwargs['name']  # 防止重复传参
+        kwargs["layers"] = self.layers
+        e_name, d_name = "Encoder", "Decoder"
+        if "name" in kwargs:
+            e_name = "%s_%s" % (kwargs["name"], e_name)
+            d_name = "%s_%s" % (kwargs["name"], d_name)
+            del kwargs["name"]  # 防止重复传参
         self._encoder = T5_Encoder(name=e_name, **kwargs)
         self._decoder = T5_Decoder(name=d_name, **kwargs)
 
     def build(self, **kwargs):
-        """同时构建Encoder和Decoder
-        """
+        """同时构建Encoder和Decoder"""
         self._encoder.build(**kwargs)
         self._decoder.build(**kwargs)
         self._decoder.position_bias = None  # 下面call时将重新初始化
@@ -2592,11 +2490,11 @@ class T5(T5_Base):
 
 
 def extend_with_language_model(BaseModel):
-    """添加下三角的Attention Mask（语言模型用）
-    """
+    """添加下三角的Attention Mask（语言模型用）"""
+
     class LanguageModel(LM_Mask, BaseModel):
-        """带下三角Attention Mask的派生模型
-        """
+        """带下三角Attention Mask的派生模型"""
+
         def __init__(self, *args, **kwargs):
             super(LanguageModel, self).__init__(*args, **kwargs)
             self.with_mlm = self.with_mlm or True
@@ -2605,12 +2503,13 @@ def extend_with_language_model(BaseModel):
 
 
 def extend_with_unified_language_model(BaseModel):
-    """添加UniLM的Attention Mask（Seq2Seq模型用）
-    """
+    """添加UniLM的Attention Mask（Seq2Seq模型用）"""
+
     class UnifiedLanguageModel(UniLM_Mask, BaseModel):
         """带UniLM的Attention Mask的派生模型
         UniLM: https://arxiv.org/abs/1905.03197
         """
+
         def __init__(self, *args, **kwargs):
             super(UnifiedLanguageModel, self).__init__(*args, **kwargs)
             self.with_mlm = self.with_mlm or True
@@ -2627,7 +2526,7 @@ def data_parallel(model, devices=None, parts=None):
     if devices is None:
         devices = get_available_gpus()
     elif isinstance(devices, int):
-        devices = ['/device:GPU:%d' % i for i in range(devices)]
+        devices = ["/device:GPU:%d" % i for i in range(devices)]
 
     if parts is None:
         parts = len(devices)
@@ -2638,7 +2537,7 @@ def data_parallel(model, devices=None, parts=None):
     splited_outputs = [[] for _ in model.outputs]
     for i, device in enumerate(devices):
         with tf.device(device):
-            outputs = model(splited_inputs[i::len(devices)])
+            outputs = model(splited_inputs[i :: len(devices)])
             outputs = outputs if isinstance(outputs, list) else [outputs]
             for j, output in enumerate(outputs):
                 splited_outputs[j].append(output)
@@ -2651,74 +2550,70 @@ def data_parallel(model, devices=None, parts=None):
 def build_transformer_model(
     config_path=None,
     checkpoint_path=None,
-    model='bert',
-    application='encoder',
+    model="bert",
+    application="encoder",
     return_keras_model=True,
     **kwargs
 ):
-    """根据配置文件构建模型，可选加载checkpoint权重
-    """
+    """根据配置文件构建模型，可选加载checkpoint权重"""
     configs = {}
     if config_path is not None:
         configs.update(json.load(open(config_path)))
     configs.update(kwargs)
-    if 'max_position' not in configs:
-        configs['max_position'] = configs.get('max_position_embeddings', 512)
-    if 'dropout_rate' not in configs:
-        configs['dropout_rate'] = configs.get('hidden_dropout_prob')
-    if 'attention_dropout_rate' not in configs:
-        configs['attention_dropout_rate'] = configs.get(
-            'attention_probs_dropout_prob'
-        )
-    if 'segment_vocab_size' not in configs:
-        configs['segment_vocab_size'] = configs.get('type_vocab_size', 2)
+    if "max_position" not in configs:
+        configs["max_position"] = configs.get("max_position_embeddings", 512)
+    if "dropout_rate" not in configs:
+        configs["dropout_rate"] = configs.get("hidden_dropout_prob")
+    if "attention_dropout_rate" not in configs:
+        configs["attention_dropout_rate"] = configs.get("attention_probs_dropout_prob")
+    if "segment_vocab_size" not in configs:
+        configs["segment_vocab_size"] = configs.get("type_vocab_size", 2)
 
     models = {
-        'bert': BERT,
-        'albert': ALBERT,
-        'albert_unshared': ALBERT_Unshared,
-        'roberta': BERT,
-        'nezha': NEZHA,
-        'roformer': RoFormer,
-        'roformer_v2': RoFormerV2,
-        'electra': ELECTRA,
-        'gpt': GPT,
-        'gpt2': GPT2,
-        'gpt2_ml': GPT2_ML,
-        't5': T5,
-        't5_encoder': T5_Encoder,
-        't5_decoder': T5_Decoder,
-        't5.1.0': T5,
-        't5.1.0_encoder': T5_Encoder,
-        't5.1.0_decoder': T5_Decoder,
-        't5.1.1': T5,
-        't5.1.1_encoder': T5_Encoder,
-        't5.1.1_decoder': T5_Decoder,
-        'mt5.1.1': T5,
-        'mt5.1.1_encoder': T5_Encoder,
-        'mt5.1.1_decoder': T5_Decoder,
+        "bert": BERT,
+        "albert": ALBERT,
+        "albert_unshared": ALBERT_Unshared,
+        "roberta": BERT,
+        "nezha": NEZHA,
+        "roformer": RoFormer,
+        "roformer_v2": RoFormerV2,
+        "electra": ELECTRA,
+        "gpt": GPT,
+        "gpt2": GPT2,
+        "gpt2_ml": GPT2_ML,
+        "t5": T5,
+        "t5_encoder": T5_Encoder,
+        "t5_decoder": T5_Decoder,
+        "t5.1.0": T5,
+        "t5.1.0_encoder": T5_Encoder,
+        "t5.1.0_decoder": T5_Decoder,
+        "t5.1.1": T5,
+        "t5.1.1_encoder": T5_Encoder,
+        "t5.1.1_decoder": T5_Decoder,
+        "mt5.1.1": T5,
+        "mt5.1.1_encoder": T5_Encoder,
+        "mt5.1.1_decoder": T5_Decoder,
     }
 
     if is_string(model):
         model = model.lower()
         MODEL = models[model]
-        if model.startswith('t5.1.1'):
-            configs['version'] = 't5.1.1'
-        elif model.startswith('mt5.1.1'):
-            configs['version'] = 'mt5.1.1'
+        if model.startswith("t5.1.1"):
+            configs["version"] = "t5.1.1"
+        elif model.startswith("mt5.1.1"):
+            configs["version"] = "mt5.1.1"
     else:
         MODEL = model
 
     application = application.lower()
-    if application in ['lm', 'unilm'] and model in ['electra', 't5']:
+    if application in ["lm", "unilm"] and model in ["electra", "t5"]:
         raise ValueError(
-            '"%s" model can not be used as "%s" application.\n' %
-            (model, application)
+            '"%s" model can not be used as "%s" application.\n' % (model, application)
         )
 
-    if application == 'lm':
+    if application == "lm":
         MODEL = extend_with_language_model(MODEL)
-    elif application == 'unilm':
+    elif application == "unilm":
         MODEL = extend_with_unified_language_model(MODEL)
 
     transformer = MODEL(**configs)
