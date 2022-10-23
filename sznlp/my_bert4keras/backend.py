@@ -25,10 +25,13 @@ from tensorflow.python.util import nest, tf_inspect
 # 判断是tf.keras还是纯keras的标记
 is_tf_keras = strtobool(os.environ.get("TF_KERAS", "0"))
 if is_tf_keras:
-    sys.modules["keras"] = tf.keras
+    import tensorflow.keras as keras
+    import tensorflow.keras.backend as K
 
-import keras
-import keras.backend as K
+    sys.modules["keras"] = keras
+else:
+    import keras
+    import keras.backend as K
 
 # 判断是否启用重计算（通过时间换空间）
 do_recompute = strtobool(os.environ.get("RECOMPUTE", "0"))
