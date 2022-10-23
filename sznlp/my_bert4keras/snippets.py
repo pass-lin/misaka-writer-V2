@@ -1,12 +1,18 @@
 #! -*- coding: utf-8 -*-
 # 代码合集
 
-import os, sys, six, re, json
-import unicodedata
+import json
 import logging
-import numpy as np
+import os
+import re
+import sys
+import unicodedata
 from collections import defaultdict
-from my_bert4keras.backend import K, keras, tf
+
+import numpy as np
+import six
+
+from .backend import K, keras, tf
 
 _open_ = open
 is_py2 = six.PY2
@@ -16,8 +22,7 @@ if not is_py2:
 
 
 def to_array(*args):
-    """批量转numpy的array
-    """
+    """批量转numpy的array"""
     results = [np.array(a) for a in args]
     if len(args) == 1:
         return results[0]
@@ -26,68 +31,54 @@ def to_array(*args):
 
 
 def is_string(s):
-    """判断是否是字符串
-    """
+    """判断是否是字符串"""
     return isinstance(s, basestring)
 
 
 def strQ2B(ustring):
-    """全角符号转对应的半角符号
-    """
-    rstring = ''
+    """全角符号转对应的半角符号"""
+    rstring = ""
     for uchar in ustring:
         inside_code = ord(uchar)
         # 全角空格直接转换
         if inside_code == 12288:
             inside_code = 32
         # 全角字符（除空格）根据关系转化
-        elif (inside_code >= 65281 and inside_code <= 65374):
+        elif inside_code >= 65281 and inside_code <= 65374:
             inside_code -= 65248
         rstring += unichr(inside_code)
     return rstring
 
 
 def string_matching(s, keywords):
-    """判断s是否至少包含keywords中的至少一个字符串
-    """
-    for k in keywords:
-        if re.search(k, s):
-            return True
-    return False
+    """判断s是否至少包含keywords中的至少一个字符串"""
+    return any(re.search(k, s) for k in keywords)
 
 
-def convert_to_unicode(text, encoding='utf-8', errors='ignore'):
-    """字符串转换为unicode格式（假设输入为utf-8格式）
-    """
-    if is_py2:
-        if isinstance(text, str):
-            text = text.decode(encoding, errors=errors)
-    else:
-        if isinstance(text, bytes):
-            text = text.decode(encoding, errors=errors)
+def convert_to_unicode(text, encoding="utf-8", errors="ignore"):
+    """字符串转换为unicode格式（假设输入为utf-8格式）"""
+    if is_py2 and isinstance(text, str) or not is_py2 and isinstance(text, bytes):
+        text = text.decode(encoding, errors=errors)
     return text
 
 
-def convert_to_str(text, encoding='utf-8', errors='ignore'):
-    """字符串转换为str格式（假设输入为utf-8格式）
-    """
+def convert_to_str(text, encoding="utf-8", errors="ignore"):
+    """字符串转换为str格式（假设输入为utf-8格式）"""
     if is_py2:
         if isinstance(text, unicode):
             text = text.encode(encoding, errors=errors)
-    else:
-        if isinstance(text, bytes):
-            text = text.decode(encoding, errors=errors)
+    elif isinstance(text, bytes):
+        text = text.decode(encoding, errors=errors)
     return text
 
 
 def lowercase_and_normalize(text):
-    """转小写，并进行简单的标准化
-    """
+    """转小写，并进行简单的标准化"""
     if is_py2:
         text = unicode(text)
     text = text.lower()
-    text = unicodedata.normalize('NFD', text)
-    text = ''.join([ch for ch in text if unicodedata.category(ch) != 'Mn'])
+    text = unicodedata.normalize("NFD", text)
+    text = "".join([ch for ch in text if unicodedata.category(ch) != "Mn"])
     return text
 
 
@@ -95,9 +86,8 @@ class open:
     """模仿python自带的open函数
     作用：1.主要是为了同时兼容py2和py3；2.增加了索引功能，方便读取大文件。
     """
-    def __init__(
-        self, name, mode='r', encoding=None, errors='strict', indexable=False
-    ):
+
+    def __init__(self, name, mode="r", encoding=None, errors="strict", indexable=False):
         self.name = name
         if is_py2:
             self.file = _open_(name, mode)
@@ -112,10 +102,10 @@ class open:
             else:
                 self.create_indexes()
                 if is_string(indexable):
-                    json.dump(self.offsets, _open_(indexable, 'w'))
+                    json.dump(self.offsets, _open_(indexable, "w"))
 
     def create_indexes(self):
-        print('creating indexes ...')
+        print("creating indexes ...")
         self.offsets, offset = [], 0
         pbar = keras.utils.Progbar(os.path.getsize(self.name))
         while self.readline():
@@ -123,7 +113,7 @@ class open:
             offset = self.tell()
             pbar.update(offset)
         self.seek(0)
-        print('indexes created.')
+        print("indexes created.")
 
     def __getitem__(self, key):
         self.seek(self.offsets[key])
@@ -220,8 +210,7 @@ def parallel_apply_generator(
         seed_queue.put(seed)
 
     def worker_step(in_queue, out_queue):
-        """单步函数包装成循环执行
-        """
+        """单步函数包装成循环执行"""
         if not seed_queue.empty():
             np.random.seed(seed_queue.get())
         while True:
@@ -263,7 +252,7 @@ def parallel_apply(
     callback=None,
     dummy=False,
     random_seeds=True,
-    unordered=True
+    unordered=True,
 ):
     """多进程或多线程地将func应用到iterable的每个元素中。
     注意这个apply是异步且无序的，也就是说依次输入a,b,c，但是
@@ -281,23 +270,21 @@ def parallel_apply(
     if callback is None:
         if unordered:
             return [d for i, d in generator]
-        else:
-            results = sorted(generator, key=lambda d: d[0])
-            return [d for i, d in results]
+        results = sorted(generator, key=lambda d: d[0])
+        return [d for i, d in results]
     else:
         for i, d in generator:
             callback(d)
 
 
-def sequence_padding(inputs, length=None, value=0, seq_dims=1, mode='post'):
-    """Numpy函数，将序列padding到同一长度
-    """
+def sequence_padding(inputs, length=None, value=0, seq_dims=1, mode="post"):
+    """Numpy函数，将序列padding到同一长度"""
     if length is None:
         length = np.max([np.shape(x)[:seq_dims] for x in inputs], axis=0)
-    elif not hasattr(length, '__getitem__'):
+    elif not hasattr(length, "__getitem__"):
         length = [length]
 
-    slices = [np.s_[:length[i]] for i in range(seq_dims)]
+    slices = [np.s_[: length[i]] for i in range(seq_dims)]
     slices = tuple(slices) if len(slices) > 1 else slices[0]
     pad_width = [(0, 0) for _ in np.shape(inputs[0])]
 
@@ -305,21 +292,20 @@ def sequence_padding(inputs, length=None, value=0, seq_dims=1, mode='post'):
     for x in inputs:
         x = x[slices]
         for i in range(seq_dims):
-            if mode == 'post':
+            if mode == "post":
                 pad_width[i] = (0, length[i] - np.shape(x)[i])
-            elif mode == 'pre':
+            elif mode == "pre":
                 pad_width[i] = (length[i] - np.shape(x)[i], 0)
             else:
                 raise ValueError('"mode" argument must be "post" or "pre".')
-        x = np.pad(x, pad_width, 'constant', constant_values=value)
+        x = np.pad(x, pad_width, "constant", constant_values=value)
         outputs.append(x)
 
     return np.array(outputs)
 
 
 def truncate_sequences(maxlen, indices, *sequences):
-    """截断总长度至不超过maxlen
-    """
+    """截断总长度至不超过maxlen"""
     sequences = [s for s in sequences if s]
     if not isinstance(indices, (list, tuple)):
         indices = [indices] * len(sequences)
@@ -333,45 +319,37 @@ def truncate_sequences(maxlen, indices, *sequences):
             return sequences
 
 
-def text_segmentate(text, maxlen, seps='\n', strips=None):
-    """将文本按照标点符号划分为若干个短句
-    """
+def text_segmentate(text, maxlen, seps="\n", strips=None):
+    """将文本按照标点符号划分为若干个短句"""
     text = text.strip().strip(strips)
-    if seps and len(text) > maxlen:
-        pieces = text.split(seps[0])
-        text, texts = '', []
-        for i, p in enumerate(pieces):
-            if text and p and len(text) + len(p) > maxlen - 1:
-                texts.extend(text_segmentate(text, maxlen, seps[1:], strips))
-                text = ''
-            if i + 1 == len(pieces):
-                text = text + p
-            else:
-                text = text + p + seps[0]
-        if text:
-            texts.extend(text_segmentate(text, maxlen, seps[1:], strips))
-        return texts
-    else:
+    if not seps or len(text) <= maxlen:
         return [text]
+    pieces = text.split(seps[0])
+    text, texts = "", []
+    for i, p in enumerate(pieces):
+        if text and p and len(text) + len(p) > maxlen - 1:
+            texts.extend(text_segmentate(text, maxlen, seps[1:], strips))
+            text = ""
+        text = text + p if i + 1 == len(pieces) else text + p + seps[0]
+    if text:
+        texts.extend(text_segmentate(text, maxlen, seps[1:], strips))
+    return texts
 
 
 def is_one_of(x, ys):
     """判断x是否在ys之中
     等价于x in ys，但有些情况下x in ys会报错
     """
-    for y in ys:
-        if x is y:
-            return True
-    return False
+    return any(x is y for y in ys)
 
 
 class DataGenerator(object):
-    """数据生成器模版
-    """
+    """数据生成器模版"""
+
     def __init__(self, data, batch_size=32, buffer_size=None):
         self.data = data
         self.batch_size = batch_size
-        if hasattr(self.data, '__len__'):
+        if hasattr(self.data, "__len__"):
             self.steps = len(self.data) // self.batch_size
             if len(self.data) % self.batch_size != 0:
                 self.steps += 1
@@ -383,8 +361,7 @@ class DataGenerator(object):
         return self.steps
 
     def sample(self, random=False):
-        """采样函数，每个样本同时返回一个is_end标记
-        """
+        """采样函数，每个样本同时返回一个is_end标记"""
         if random:
             if self.steps is None:
 
@@ -423,8 +400,7 @@ class DataGenerator(object):
 
     def forfit(self, random=True):
         while True:
-            for d in self.__iter__(random):
-                yield d
+            yield from self.__iter__(random)
 
     def fortest(self, random=False):
         while True:
@@ -446,9 +422,7 @@ class DataGenerator(object):
             elif is_string(names[0]):
                 warps = lambda k, v: dict(zip(k, v))
             else:
-                warps = lambda k, v: tuple(
-                    dict(zip(i, j)) for i, j in zip(k, v)
-                )
+                warps = lambda k, v: tuple(dict(zip(i, j)) for i, j in zip(k, v))
 
             def generator():
                 for d in self.forfit():
@@ -458,9 +432,7 @@ class DataGenerator(object):
             shapes = warps(names, shapes)
 
         if padded_batch:
-            dataset = tf.data.Dataset.from_generator(
-                generator, output_types=types
-            )
+            dataset = tf.data.Dataset.from_generator(generator, output_types=types)
             dataset = dataset.padded_batch(self.batch_size, shapes)
         else:
             dataset = tf.data.Dataset.from_generator(
@@ -472,8 +444,8 @@ class DataGenerator(object):
 
 
 class ViterbiDecoder(object):
-    """Viterbi解码算法基类
-    """
+    """Viterbi解码算法基类"""
+
     def __init__(self, trans, starts=None, ends=None):
         self.trans = trans
         self.num_labels = len(trans)
@@ -489,8 +461,7 @@ class ViterbiDecoder(object):
                     self.non_ends.append(i)
 
     def decode(self, nodes):
-        """nodes.shape=[seq_len, num_labels]
-        """
+        """nodes.shape=[seq_len, num_labels]"""
         # 预处理
         nodes[0, self.non_starts] -= np.inf
         nodes[-1, self.non_ends] -= np.inf
@@ -510,8 +481,7 @@ class ViterbiDecoder(object):
 
 
 def softmax(x, axis=-1):
-    """numpy版softmax
-    """
+    """numpy版softmax"""
     x = x - x.max(axis=axis, keepdims=True)
     x = np.exp(x)
     return x / x.sum(axis=axis, keepdims=True)
@@ -521,6 +491,7 @@ class AutoRegressiveDecoder(object):
     """通用自回归生成模型解码基类
     包含beam search和random sample两种策略
     """
+
     def __init__(self, start_id, end_id, maxlen, minlen=1):
         self.start_id = start_id
         self.end_id = end_id
@@ -533,37 +504,31 @@ class AutoRegressiveDecoder(object):
             self.first_output_ids = np.array([[self.start_id]])
 
     @staticmethod
-    def wraps(default_rtype='probas', use_states=False):
+    def wraps(default_rtype="probas", use_states=False):
         """用来进一步完善predict函数
         目前包含：1. 设置rtype参数，并做相应处理；
                   2. 确定states的使用，并做相应处理；
                   3. 设置温度参数，并做相应处理。
         """
+
         def actual_decorator(predict):
             def new_predict(
-                self,
-                inputs,
-                output_ids,
-                states,
-                temperature=1,
-                rtype=default_rtype
+                self, inputs, output_ids, states, temperature=1, rtype=default_rtype
             ):
-                assert rtype in ['probas', 'logits']
+                assert rtype in ["probas", "logits"]
                 prediction = predict(self, inputs, output_ids, states)
 
                 if not use_states:
                     prediction = (prediction, None)
 
-                if default_rtype == 'logits':
-                    prediction = (
-                        softmax(prediction[0] / temperature), prediction[1]
-                    )
+                if default_rtype == "logits":
+                    prediction = (softmax(prediction[0] / temperature), prediction[1])
                 elif temperature != 1:
                     probas = np.power(prediction[0], 1.0 / temperature)
                     probas = probas / probas.sum(axis=-1, keepdims=True)
                     prediction = (probas, prediction[1])
 
-                if rtype == 'probas':
+                if rtype == "probas":
                     return prediction
                 else:
                     return np.log(prediction[0] + 1e-12), prediction[1]
@@ -573,8 +538,7 @@ class AutoRegressiveDecoder(object):
         return actual_decorator
 
     def last_token(self, model):
-        """创建一个只返回最后一个token输出的新Model
-        """
+        """创建一个只返回最后一个token输出的新Model"""
         if model not in self.models:
             outputs = [
                 keras.layers.Lambda(lambda x: x[:, -1])(output)
@@ -602,7 +566,7 @@ class AutoRegressiveDecoder(object):
         output_ids, output_scores = self.first_output_ids, np.zeros(1)
         for step in range(self.maxlen):
             scores, states = self.predict(
-                inputs, output_ids, states, temperature, 'logits'
+                inputs, output_ids, states, temperature, "logits"
             )  # 计算当前得分
             if step == 0:  # 第1步预测后将输入重复topk次
                 inputs = [np.repeat(i, topk, axis=0) for i in inputs]
@@ -610,11 +574,8 @@ class AutoRegressiveDecoder(object):
             indices = scores.argpartition(-topk, axis=None)[-topk:]  # 仅保留topk
             indices_1 = indices // scores.shape[1]  # 行索引
             indices_2 = (indices % scores.shape[1]).reshape((-1, 1))  # 列索引
-            output_ids = np.concatenate([output_ids[indices_1], indices_2],
-                                        1)  # 更新输出
-            output_scores = np.take_along_axis(
-                scores, indices, axis=None
-            )  # 更新得分
+            output_ids = np.concatenate([output_ids[indices_1], indices_2], 1)  # 更新输出
+            output_scores = np.take_along_axis(scores, indices, axis=None)  # 更新得分
             is_end = output_ids[:, -1] == self.end_id  # 标记是否以end标记结束
             end_counts = (output_ids == self.end_id).sum(1)  # 统计出现的end标记
             if output_ids.shape[1] >= self.minlen:  # 最短长度判断
@@ -633,14 +594,7 @@ class AutoRegressiveDecoder(object):
         return output_ids[output_scores.argmax()]
 
     def random_sample(
-        self,
-        inputs,
-        n,
-        topk=None,
-        topp=None,
-        states=None,
-        temperature=1,
-        min_ends=1
+        self, inputs, n, topk=None, topp=None, states=None, temperature=1, min_ends=1
     ):
         """随机采样n个结果
         说明：非None的topk表示每一步只从概率最高的topk个中采样；而非None的topp
@@ -652,7 +606,7 @@ class AutoRegressiveDecoder(object):
         results = []
         for step in range(self.maxlen):
             probas, states = self.predict(
-                inputs, output_ids, states, temperature, 'probas'
+                inputs, output_ids, states, temperature, "probas"
             )  # 计算当前概率
             probas /= probas.sum(axis=1, keepdims=True)  # 确保归一化
             if step == 0:  # 第1步预测后将结果重复n次
@@ -660,8 +614,7 @@ class AutoRegressiveDecoder(object):
                 inputs = [np.repeat(i, n, axis=0) for i in inputs]
                 output_ids = np.repeat(output_ids, n, axis=0)
             if topk is not None:
-                k_indices = probas.argpartition(-topk,
-                                                axis=1)[:, -topk:]  # 仅保留topk
+                k_indices = probas.argpartition(-topk, axis=1)[:, -topk:]  # 仅保留topk
                 probas = np.take_along_axis(probas, k_indices, axis=1)  # topk概率
                 probas /= probas.sum(axis=1, keepdims=True)  # 重新归一化
             if topp is not None:
@@ -676,30 +629,24 @@ class AutoRegressiveDecoder(object):
             sample_ids = np.apply_along_axis(sample_func, 1, probas)  # 执行采样
             sample_ids = sample_ids.reshape((-1, 1))  # 对齐形状
             if topp is not None:
-                sample_ids = np.take_along_axis(
-                    p_indices, sample_ids, axis=1
-                )  # 对齐原id
+                sample_ids = np.take_along_axis(p_indices, sample_ids, axis=1)  # 对齐原id
             if topk is not None:
-                sample_ids = np.take_along_axis(
-                    k_indices, sample_ids, axis=1
-                )  # 对齐原id
+                sample_ids = np.take_along_axis(k_indices, sample_ids, axis=1)  # 对齐原id
             output_ids = np.concatenate([output_ids, sample_ids], 1)  # 更新输出
             is_end = output_ids[:, -1] == self.end_id  # 标记是否以end标记结束
             end_counts = (output_ids == self.end_id).sum(1)  # 统计出现的end标记
             if output_ids.shape[1] >= self.minlen:  # 最短长度判断
                 flag = is_end & (end_counts >= min_ends)  # 标记已完成序列
                 if flag.any():  # 如果有已完成的
-                    for ids in output_ids[flag]:  # 存好已完成序列
-                        results.append(ids)
-                    flag = (flag == False)  # 标记未完成序列
+                    results.extend(iter(output_ids[flag]))  # 存好已完成序列
+                    flag = flag == False  # 标记未完成序列
                     inputs = [i[flag] for i in inputs]  # 只保留未完成部分输入
                     output_ids = output_ids[flag]  # 只保留未完成部分候选集
                     end_counts = end_counts[flag]  # 只保留未完成部分end计数
                     if len(output_ids) == 0:
                         break
         # 如果还有未完成序列，直接放入结果
-        for ids in output_ids:
-            results.append(ids)
+        results.extend(iter(output_ids))
         # 返回结果
         return results
 
@@ -708,6 +655,7 @@ def insert_arguments(**arguments):
     """装饰器，为类方法增加参数
     （主要用于类的__init__方法）
     """
+
     def actual_decorator(func):
         def new_func(self, *args, **kwargs):
             for k, v in arguments.items():
@@ -725,13 +673,14 @@ def delete_arguments(*arguments):
     """装饰器，为类方法删除参数
     （主要用于类的__init__方法）
     """
+
     def actual_decorator(func):
         def new_func(self, *args, **kwargs):
             for k in arguments:
                 if k in kwargs:
                     raise TypeError(
-                        '%s got an unexpected keyword argument \'%s\'' %
-                        (self.__class__.__name__, k)
+                        "%s got an unexpected keyword argument '%s'"
+                        % (self.__class__.__name__, k)
                     )
             return func(self, *args, **kwargs)
 
@@ -784,8 +733,7 @@ def longest_common_subsequence(source, target):
 
 
 def orthogonally_resize(a, new_shape, window=2):
-    """简单的正交化缩放矩阵
-    """
+    """简单的正交化缩放矩阵"""
     assert a.ndim == len(new_shape)
     slices, a_norm, w = [], np.linalg.norm(a), window
     for i, (d1, d2) in enumerate(zip(a.shape, new_shape)):
@@ -793,9 +741,9 @@ def orthogonally_resize(a, new_shape, window=2):
             k = d2 // d1 + int(d2 % d1 != 0)
             if k > 1:
                 assert d1 % w == 0
-                a = a.reshape(a.shape[:i] + (d1 // w, w) + a.shape[i + 1:])
+                a = a.reshape(a.shape[:i] + (d1 // w, w) + a.shape[i + 1 :])
                 a = np.repeat(a, k, axis=i)
-                a = a.reshape(a.shape[:i] + (d1 * k,) + a.shape[i + 2:])
+                a = a.reshape(a.shape[:i] + (d1 * k,) + a.shape[i + 2 :])
         slices.append(np.s_[:d2])
     a = a[tuple(slices)]
     return a / np.linalg.norm(a) * a_norm
@@ -818,7 +766,8 @@ class WebServing(object):
         pip install paste
         （如果不用 server='paste' 的话，可以不装paste库）
     """
-    def __init__(self, host='0.0.0.0', port=8000, server='paste'):
+
+    def __init__(self, host="0.0.0.0", port=8000, server="paste"):
 
         import bottle
 
@@ -830,7 +779,7 @@ class WebServing(object):
         self.set_session = K.set_session
         self.bottle = bottle
 
-    def wraps(self, func, arguments, method='GET'):
+    def wraps(self, func, arguments, method="GET"):
         """封装为接口函数
         参数：
             func：要转换为接口的函数，需要保证输出可以json化，即需要
@@ -840,18 +789,19 @@ class WebServing(object):
                        型），value[1]为该参数是否必须；
             method：GET或者POST。
         """
+
         def new_func():
-            outputs = {'code': 0, 'desc': u'succeeded', 'data': {}}
+            outputs = {"code": 0, "desc": "succeeded", "data": {}}
             kwargs = {}
             for key, value in arguments.items():
-                if method == 'GET':
+                if method == "GET":
                     result = self.bottle.request.GET.getunicode(key)
                 else:
                     result = self.bottle.request.POST.getunicode(key)
                 if result is None:
                     if value[1]:
-                        outputs['code'] = 1
-                        outputs['desc'] = 'lack of "%s" argument' % key
+                        outputs["code"] = 1
+                        outputs["desc"] = 'lack of "%s" argument' % key
                         return json.dumps(outputs, ensure_ascii=False)
                 else:
                     if value[0] is not None:
@@ -860,29 +810,27 @@ class WebServing(object):
             try:
                 with self.graph.as_default():
                     self.set_session(self.sess)
-                    outputs['data'] = func(**kwargs)
+                    outputs["data"] = func(**kwargs)
             except Exception as e:
-                outputs['code'] = 2
-                outputs['desc'] = str(e)
+                outputs["code"] = 2
+                outputs["desc"] = str(e)
             return json.dumps(outputs, ensure_ascii=False)
 
         return new_func
 
-    def route(self, path, func, arguments, method='GET'):
-        """添加接口
-        """
+    def route(self, path, func, arguments, method="GET"):
+        """添加接口"""
         func = self.wraps(func, arguments, method)
         self.bottle.route(path, method=method)(func)
 
     def start(self):
-        """启动服务
-        """
+        """启动服务"""
         self.bottle.run(host=self.host, port=self.port, server=self.server)
 
 
 class Hook:
-    """注入uniout模块，实现import时才触发
-    """
+    """注入uniout模块，实现import时才触发"""
+
     def __init__(self, module):
         self.module = module
 
@@ -891,7 +839,7 @@ class Hook:
         等效于 import uniout （自动识别Python版本，Python3
         下则无操作。）
         """
-        if attr == 'uniout':
+        if attr == "uniout":
             if is_py2:
                 import uniout
         else:
