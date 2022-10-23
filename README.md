@@ -18,7 +18,8 @@
 
 推荐的配置为 tensorflow 2.2.0/tensorflow 1.15，cuda 10.1，cudnn 7.6 keras2.3.1  
 
-对于不支持 cuda 10 的 30 系显卡，建议使用 nvdian-tensorflow,如果实在没法用tf1.15就把#os.environ['TF_KERAS'] = '1'这个#去掉  
+对于不支持 cuda 10 的 30 系显卡，建议使用 nvdian-tensorflow
+或者按照V1的方法安装tf2.5(兼容了tf.keras
 
 ### 使用 conda 配置
 
