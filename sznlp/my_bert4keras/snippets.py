@@ -1,11 +1,17 @@
 #! -*- coding: utf-8 -*-
 # 代码合集
 
-import os, sys, six, re, json
-import unicodedata
+import json
 import logging
-import numpy as np
+import os
+import re
+import sys
+import unicodedata
 from collections import defaultdict
+
+import numpy as np
+import six
+
 from .backend import K, keras, tf
 
 _open_ = open

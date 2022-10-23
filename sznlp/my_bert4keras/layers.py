@@ -3,13 +3,19 @@
 
 import numpy as np
 import tensorflow as tf
-from .backend import keras, K, is_tf_keras
-from .backend import align, sequence_masking
-from .backend import recompute_grad
-from .backend import attention_normalize
-from .backend import apply_rotary_position_embeddings
-from keras import initializers, activations
+from keras import activations, initializers
 from keras.layers import *
+
+from .backend import (
+    K,
+    align,
+    apply_rotary_position_embeddings,
+    attention_normalize,
+    is_tf_keras,
+    keras,
+    recompute_grad,
+    sequence_masking,
+)
 
 
 def integerize_shape(func):

@@ -4,14 +4,15 @@ Created on Wed Mar 16 15:05:31 2022
 
 @author: Administrator
 """
-import time
-from sklearn.utils import shuffle
-import numpy as np
-from ..my_bert4keras.snippets import sequence_padding
-from ..my_bert4keras.backend import keras, tf, K
-from threading import Thread
-import random
 import os
+import time
+from threading import Thread
+
+import numpy as np
+from sklearn.utils import shuffle
+
+from .my_bert4keras.backend import K, keras, tf
+from .my_bert4keras.snippets import sequence_padding
 
 datas = []
 

@@ -23,14 +23,14 @@ import os
 
 #os.environ['TF_KERAS'] = '1'
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
-from my_bert4keras.backend import set_gelu,tf,keras
+from sznlp.my_bert4keras.backend import set_gelu,tf,keras
 gpus = tf.config.experimental.list_physical_devices(device_type='GPU')
 for gpu in gpus:
     tf.config.experimental.set_memory_growth(gpu, True)
-from my_bert4keras.tokenizers import Tokenizer
+from sznlp.my_bert4keras.tokenizers import Tokenizer
 from sznlp.tools import seq2seq_Generate
 from sznlp.misaka_models import Misaka
-from my_bert4keras.models import build_transformer_model
+from sznlp.my_bert4keras.models import build_transformer_model
 def get_writer_model():
     #别动，动一下跑不了后果自负
     misaka = build_transformer_model(

@@ -1,12 +1,17 @@
 #! -*- coding: utf-8 -*-
 # 分词函数
 
-import unicodedata, re
-from .snippets import is_string, is_py2
-from .snippets import open
-from .snippets import convert_to_unicode
-from .snippets import truncate_sequences
-from .snippets import lowercase_and_normalize
+import re
+import unicodedata
+
+from .snippets import (
+    convert_to_unicode,
+    is_py2,
+    is_string,
+    lowercase_and_normalize,
+    open,
+    truncate_sequences,
+)
 
 
 def load_vocab(dict_path, encoding="utf-8", simplified=False, startswith=None):

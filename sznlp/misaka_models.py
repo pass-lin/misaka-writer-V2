@@ -6,7 +6,7 @@ Created on Wed May 25 13:47:50 2022
 """
 # import os
 # os.environ['TF_KERAS'] = '1'
-from ..my_bert4keras.models import *
+from .my_bert4keras.models import *
 
 
 class GatedAttentionUnit_cross(Layer):

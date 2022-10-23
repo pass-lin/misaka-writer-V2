@@ -1,14 +1,14 @@
 # -*- coding: utf-8 -*-
 # 优化相关
 
+import re
+
 import numpy as np
 import tensorflow as tf
-from .backend import keras, K, is_tf_keras
-from .snippets import is_string, string_matching
-from .snippets import is_one_of, insert_arguments
-from .backend import piecewise_linear
+
+from .backend import K, is_tf_keras, keras, piecewise_linear
 from .backend import root_mean_square as rms
-import re
+from .snippets import insert_arguments, is_one_of, is_string, string_matching
 
 
 class Adam(keras.optimizers.Optimizer):

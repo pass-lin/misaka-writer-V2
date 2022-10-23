@@ -12,7 +12,7 @@ max_len=512#最大长度
 repeat_punish=0.99#惩罚因子
 config_path='models/config-misaka.json'#config路径
 vocab_path='models/vocab-misaka.txt'#词表路径
-model_path='models/misaka.h5'#模型路径
+model_path='models/古言.h5'#模型路径
 #开头
 
 text='以《月色真美》为题写一篇文章'
@@ -22,11 +22,11 @@ import os
 #os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
 #os.environ['TF_KERAS'] = '1'
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
-from my_bert4keras.backend import set_gelu,tf,keras
+from sznlp.my_bert4keras.backend import set_gelu,tf,keras
 gpus = tf.config.experimental.list_physical_devices(device_type='GPU')
 for gpu in gpus:
     tf.config.experimental.set_memory_growth(gpu, True)
-from my_bert4keras.models import build_transformer_model
+from sznlp.my_bert4keras.models import build_transformer_model
 from sznlp.cache_predict import *
 def get_writer_model():
     #别动，动一下跑不了后果自负

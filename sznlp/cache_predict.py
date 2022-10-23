@@ -5,9 +5,9 @@ Created on Sat Oct 22 16:57:33 2022
 @author: Administrator
 """
 from .cache_model import *
-from ..my_bert4keras.snippets import sequence_padding
-from ..my_bert4keras.tokenizers import Tokenizer
-from ..my_bert4keras.models import build_transformer_model
+from .my_bert4keras.models import build_transformer_model
+from .my_bert4keras.snippets import sequence_padding
+from .my_bert4keras.tokenizers import Tokenizer
 
 
 class Seq2SeqGenerate_Cache:

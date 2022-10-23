@@ -1,15 +1,20 @@
 #! -*- coding: utf-8 -*-
 # 主要模型
 
+import json
+
 import numpy as np
+from keras.models import Model
+
 from .backend import get_available_gpus
 from .layers import *
-from .snippets import insert_arguments
-from .snippets import delete_arguments
-from .snippets import is_string, string_matching
-from .snippets import orthogonally_resize
-from keras.models import Model
-import json
+from .snippets import (
+    delete_arguments,
+    insert_arguments,
+    is_string,
+    orthogonally_resize,
+    string_matching,
+)
 
 
 class Transformer(object):

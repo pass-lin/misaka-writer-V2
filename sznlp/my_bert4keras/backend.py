@@ -2,8 +2,10 @@
 # 分离后端函数，主要是为了同时兼容原生keras和tf.keras
 # 通过设置环境变量TF_KERAS=1来切换tf.keras
 
-import os, sys
+import os
+import sys
 from distutils.util import strtobool
+
 import numpy as np
 import tensorflow as tf
 
@@ -16,9 +18,9 @@ def experimental_list_device():
     return [x.name for x in _LOCAL_DEVICES]
 tf.config.experimental_list_devices=experimental_list_device"""
 from tensorflow.python.client import device_lib
-from tensorflow.python.util import nest, tf_inspect
 from tensorflow.python.eager import tape
 from tensorflow.python.ops.custom_gradient import _graph_mode_decorator
+from tensorflow.python.util import nest, tf_inspect
 
 # 判断是tf.keras还是纯keras的标记
 is_tf_keras = strtobool(os.environ.get("TF_KERAS", "0"))
