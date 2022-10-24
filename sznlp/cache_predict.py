@@ -65,13 +65,13 @@ class Seq2SeqGenerate_Cache:
         topk=0.8,  # topk的k
         max_len=512,
         repeat_punish=0.99,
+        step_callback=None,
     ):
         self.initial_cache(len(data))
         encoder_outputs = self.EncoderPredict(data)
         output_ids = np.array([[self.start_token]] * len(data))
         end_token = np.array([True] * len(data))
         for step in range(max_len):
-            print("\r[ nums:%d   length:%d]" % (sum(end_token), step), end="")
             decoder_out = output_ids[end_token][:, -1]
             scores = self.DcoderPredict(
                 encoder_outputs[end_token], decoder_out
@@ -106,6 +106,8 @@ class Seq2SeqGenerate_Cache:
 
             if sum(end_token) == 0:
                 break
+            if step_callback:
+                step_callback(sum(end_token), step)
         return output_ids
 
     def writer(
@@ -116,15 +118,18 @@ class Seq2SeqGenerate_Cache:
         batch_size=32,
         max_len=512,
         repeat_punish=0.99,  # 重复惩罚因子
+        step_callback=None,
     ):
         # 生成代码
         if k > 1 or k <= 0:
-            raise ("k值应该在0和1之间")
+            raise RuntimeError("k值应该在0和1之间")
         if repeat_punish > 1 or repeat_punish <= 0:
-            raise ("惩罚值应该在0和1之间")
+            raise RuntimeError("惩罚值应该在0和1之间")
         data = self.load_data(data, nums)
         self.batch_size = batch_size
-        ys = self.generate_sentence(data, k, max_len, repeat_punish)
+        ys = self.generate_sentence(
+            data, k, max_len, repeat_punish, step_callback=step_callback
+        )
         result = []
 
         try:
