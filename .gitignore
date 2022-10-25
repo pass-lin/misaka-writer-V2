@@ -161,3 +161,10 @@ cython_debug/
 
 .vscode/
 *.h5
+
+# Packing Files
+!/python/README.md
+/python/*
+/python-*/*
+*.tar
+*.zip
