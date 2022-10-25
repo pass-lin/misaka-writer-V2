@@ -135,13 +135,13 @@ class Seq2SeqGenerate_Cache:
 
         try:
             result.extend(
-                self.tokenizer.decode(y).replace(self.skip_token, "\n") for y in ys
+                self.tokenizer.decode(y) for y in ys
             )
 
         except Exception:
             # 如果用的是SpTokenizer需要手动转成int的列表才能用
             for y in ys:
                 t = [int(a) for a in y]
-                result.append(self.tokenizer.decode(t).replace(self.skip_token, "\n"))
+                result.append(self.tokenizer.decode(t))
         print("\n")
         return result
