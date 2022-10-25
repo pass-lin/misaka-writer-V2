@@ -34,18 +34,18 @@ class Seq2SeqGenerate_Cache:
             self.end_token = end_token
         else:
             self.end_token = tokenizer._token_end_id
-
+        self.skip_token_id = tokenizer.token_to_id(self.start_token) if self.start_token!=None else 0
     def initial_cache(self, num):
         # 初始化cache
         self.caches = [np.zeros([num, 0, t.shape[-1]]) for t in self.decoder.inputs[2:]]
 
-    def DcoderPredict(self, encoder_outputs, decoder_out):
+    def DcoderPredict(self, encoder_outputs, decoder_out,end_token):
         # decoder模型预测
         decoder_out = np.reshape(decoder_out, [-1, 1])
         pred = self.decoder.predict(
             [encoder_outputs, decoder_out] + self.caches, batch_size=self.batch_size
         )
-        self.caches = pred[1:]
+        self.caches=pred[1:]
         return pred[0]
 
     def EncoderPredict(self, encoder_inputs):
@@ -74,13 +74,13 @@ class Seq2SeqGenerate_Cache:
         for step in range(max_len):
             decoder_out = output_ids[end_token][:, -1]
             scores = self.DcoderPredict(
-                encoder_outputs[end_token], decoder_out
+                encoder_outputs[end_token], decoder_out,end_token
             )  # 计算当前得分
             scores = scores[:, -1]
             ids = output_ids[end_token]
             for i in range(len(scores)):
                 for t in ids[i]:
-                    if t != 0:
+                    if t != 0 and t!=self.skip_token_id:
                         scores[i, t] *= repeat_punish
             # 这里负责解码
             outs = []
@@ -102,6 +102,7 @@ class Seq2SeqGenerate_Cache:
             )  # 更新输出
             output_ids[end_token, -1:] = indices_2
             end_now = output_ids[end_token, -1] != self.end_token  # 标记是否以end标记结束
+            self.caches=[cache[end_now] for cache in self.caches]
             end_token[end_token] = end_now
 
             if sum(end_token) == 0:
