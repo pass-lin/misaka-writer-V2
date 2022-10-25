@@ -7,7 +7,6 @@ import pyperclip
 import streamlit as st
 
 from backend import (
-    cleanup_memory,
     device_type,
     generate,
     is_gpu_avaiable,
@@ -42,6 +41,7 @@ def init_state(name, default=None):
 init_state("current_model", None)
 init_state("outputs", [])
 init_state("time_consumed", 0)
+init_state("cpu_mode", not is_gpu_avaiable)
 
 with st.sidebar:
     model_path = st.selectbox(
@@ -55,7 +55,6 @@ with st.sidebar:
         refresh_models()
     if right.button("重新加载模型"):
         st.session_state["current_model"] = None
-        cleanup_memory()
 
     config_path = st.text_input("配置文件:", value="models/config-misaka.json")
     vocab_path = st.text_input("词表:", value="models/vocab-misaka.txt")
@@ -78,7 +77,15 @@ with st.sidebar:
     batch_size = int(
         st.number_input("批大小(batch size):", min_value=1, max_value=256, value=64)
     )
-    if not is_gpu_avaiable:
+    cpu_mode = st.checkbox(
+        "启用针对 CPU 的优化",
+        value=st.session_state["cpu_mode"],
+        help="基于缓存的优化，可以提升 CPU 的生成速度，对结果有一定影响。",
+    )
+    if cpu_mode != st.session_state["cpu_mode"]:
+        st.session_state["cpu_mode"] = cpu_mode
+        st.session_state["current_model"] = None
+    if st.session_state["cpu_mode"]:
         repeat_punish = st.number_input(
             "重复惩罚:",
             min_value=0.0,
@@ -114,10 +121,20 @@ right.caption(
     f'<div style="text-align: right">当前字数: {len(text)}</div>', unsafe_allow_html=True
 )
 
-model = st.session_state["current_model"]
-with st.spinner("加载模型中..."):
-    model = load_model(model_path, model, config_path, vocab_path)
-    st.session_state["current_model"] = model
+if model_path:
+    model = st.session_state["current_model"]
+    with st.spinner("加载模型中..."):
+        model = load_model(
+            model_path,
+            model,
+            config_path,
+            vocab_path,
+            cpu_mode=st.session_state["cpu_mode"],
+        )
+        st.session_state["current_model"] = model
+else:
+    st.warning("未找到模型，请将模型放在 models 文件夹下。")
+    st.stop()
 
 start_generate = left.button("生成")
 
@@ -175,7 +192,9 @@ if model and start_generate:
                 sys.stderr.write(f"\r[ nums:{nums}   length:{n}]"),
                 pbar.update(),
             ),
+            cpu_mode=st.session_state["cpu_mode"],
         )
+        sys.stderr.write("\n")
         st.session_state["outputs"] = outputs
         st.session_state["time_consumed"] = time_consumed
 
