@@ -33,7 +33,7 @@
 conda create -n misaka-writer python=3.8
 conda activate misaka-writer
 conda install -c conda-forge pandas cudatoolkit=10.1 cudnn
-pip install tensorflow==2.2.0 keras==2.3.1 sklearn
+pip install tensorflow==2.2.0 keras==2.3.1 sklearn tqdm 
 ```
 
 对于 tensorflow 1.15（只限 linux）：
